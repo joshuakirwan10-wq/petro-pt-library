@@ -235,7 +235,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 <footer>
   <div class="wrap">
     <strong>Petro Personal Training</strong>
-    <span>Coach Josh, Bahrain. Your plan sets your sets, reps and weights. Use these clips to check your form.</span>
+    <span>Coach Josh, Petro Personal Training. Your plan sets your sets, reps and weights. Use these clips to check your form.</span>
     <div class="ask"><span class="wa">Questions about a move, or something hurts? Contact me on WhatsApp.</span><a class="wa-btn" href="https://wa.me/27635028839?text=Hi%20Josh%2C%20I%20have%20a%20question%20about%20a%20move." target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M12 3C6.98 3 3 6.69 3 11.25c0 2.42 1.13 4.6 2.94 6.11L5.2 21l3.84-1.86c.93.24 1.92.36 2.96.36 5.02 0 9-3.69 9-8.25S17.02 3 12 3zm-3.6 9.4a1.15 1.15 0 1 1 0-2.3 1.15 1.15 0 0 1 0 2.3zm3.6 0a1.15 1.15 0 1 1 0-2.3 1.15 1.15 0 0 1 0 2.3zm3.6 0a1.15 1.15 0 1 1 0-2.3 1.15 1.15 0 0 1 0 2.3z"/></svg>Message Josh on WhatsApp</a><span>My number: <span class="num">+27 63 502 8839</span></span></div>
   </div>
 </footer>
@@ -1347,10 +1347,10 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     const down = [0.22, 0.03, 0.02];
     L.push({
       id: 'plank-shoulder-tap', name: 'Plank shoulder tap', group: 'Shoulders', kind: 'Bodyweight', equip: ['Body only'],
-      primary: ['shoulders'], secondary: ['abs', 'obliques', 'triceps'], cam: [48, 16],
+      primary: ['shoulders'], secondary: ['abs', 'obliques', 'triceps'], cam: [30, 2],
       keys: [H.with(base, { hand: { L: down, R: down } }),
-        H.with(base, { hand: { L: down, R: H.ch(-0.15, 0.25, 0.13) }, pel: [top.pel[0], 0, -3] }),
-        H.with(base, { hand: { L: H.ch(-0.15, 0.25, 0.13), R: down }, pel: [top.pel[0], 0, 3] })],
+        H.with(base, { hand: { L: down, R: H.ch(-0.19, 0.27, 0.13) }, elbow: { L: [0.4, 0, -1], R: [0.2, -1, 0.4] }, pel: [top.pel[0], 0, -3] }),
+        H.with(base, { hand: { L: H.ch(-0.19, 0.27, 0.13), R: down }, elbow: { L: [0.2, -1, 0.4], R: [0.4, 0, -1] }, pel: [top.pel[0], 0, 3] })],
       tl: [[1, 0.55], [1, 0.15], [0, 0.55], [0, 0.15], [2, 0.55], [2, 0.15], [0, 0.55], [0, 0.15]],
       steps: ['Start in a high plank with hands under your shoulders and feet a little wider than your hips.', 'Lift one hand and tap the opposite shoulder, then put it back down.', 'Switch sides and keep alternating.'],
       cues: ['Your hips stay still. Imagine a glass of water balanced on your lower back.', 'Widen your feet to make it easier.'],
@@ -1490,11 +1490,11 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     const base = { hip: [0, 0.12, 0], pel: [-40, 0, 0], foot: [0.13, 0.08, 0.5], knee: [0.15, 0, 1], plant: 1, hand: H.ch(0.07, 0.17, 0.3), elbow: [0.6, -1, 0], nk: 8 };
     L.push({
       id: 'dumbbell-russian-twist', name: 'Dumbbell Russian twist', group: 'Core', kind: 'Weights', equip: ['Dumbbell', 'Mat'],
-      primary: ['obliques'], secondary: ['abs'], cam: [22, 20],
-      keys: [H.with(base, { sp: [10, 0, 0] }), H.with(base, { sp: [10, 0, 38] }), H.with(base, { sp: [10, 0, -38] })],
+      primary: ['obliques'], secondary: ['abs'], cam: [16, 38],
+      keys: [H.with(base, { sp: [10, 0, 0] }), H.with(base, { sp: [12, 0, 44], hand: { L: H.pel(0.25, 0.02, 0.16), R: H.pel(-0.15, 0.02, 0.16) } }), H.with(base, { sp: [12, 0, -44], hand: { L: H.pel(-0.15, 0.02, 0.16), R: H.pel(0.25, 0.02, 0.16) } })],
       tl: [[1, 0.55], [1, 0.12], [0, 0.5], [2, 0.55], [2, 0.12], [0, 0.5]],
       props: (o, p, P) => [...P.mat(0.15, { len: 1.6, w: 0.42 }), ...P.dumbbell(avg(o.hands.L, o.hands.R), o.cx)],
-      steps: ['Sit with knees bent and heels on the floor, holding a dumbbell at your chest.', 'Lean back until you feel your stomach switch on, chest tall.', 'Rotate your shoulders to one side, back through the middle, then to the other side.'],
+      steps: ['Sit with knees bent and heels on the floor, holding a dumbbell at your chest.', 'Lean back until you feel your stomach switch on, chest tall.', 'Rotate and bring the dumbbell down next to one hip, back through the middle, then down next to the other hip.'],
       cues: ['Turn your ribs and shoulders with the weight. The arms just come along.', 'Lift your feet off the floor only when the move is smooth.'],
       mistake: 'Rounding the lower back and collapsing into the hips.',
     });
@@ -2376,15 +2376,15 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     });
   }
   {
-    const base = { hip: [0, 0.11, 0], pel: [-90, 0, 0], nk: 16, knee: [0.1, 0, 1], hand: H.sh(0.1, 0.22, 0.1), elbow: [1, 0.2, 0.2] };
-    const table = [0.1, 0.52, 0.42], ext = [0.1, 0.24, 0.86];
+    const base = { hip: [0, 0.11, 0], pel: [-90, 0, 0], nk: 18, knee: [0.1, 0, 1], hand: H.ch(0.05, 0.43, -0.08), elbow: [1, 0.15, 0.1] };
+    const table = [0.1, 0.5, 0.2], ext = [0.1, 0.24, 0.86];
     L.push({
       id: 'bicycle-crunch', name: 'Bicycle crunch', group: 'Core', kind: 'Bodyweight', equip: ['Mat'],
       primary: ['obliques', 'abs'], secondary: [], cam: [48, 26],
-      keys: [H.with(base, { sp: [28, 0, 32], foot: { L: table, R: ext }, toe: { L: 0, R: 20 } }), H.with(base, { sp: [28, 0, -32], foot: { L: ext, R: table }, toe: { L: 20, R: 0 } })],
+      keys: [H.with(base, { sp: [44, 0, 48], foot: { L: table, R: ext }, toe: { L: 0, R: 20 } }), H.with(base, { sp: [44, 0, -48], foot: { L: ext, R: table }, toe: { L: 20, R: 0 } })],
       tl: [[1, 0.7], [1, 0.12], [0, 0.7], [0, 0.12]],
       props: (o, p, P) => P.mat(0.15, { len: 2.0 }),
-      steps: ['Lie on your back with your hands by your ears and your shoulders off the floor.', 'Bring one knee in and turn your opposite shoulder toward it while the other leg reaches long.', 'Switch sides in a slow pedalling motion.'],
+      steps: ['Lie on your back with your hands behind your head and your shoulders off the floor.', 'Bring one knee in and turn your opposite elbow toward it while the other leg reaches long.', 'Switch sides in a slow pedalling motion.'],
       cues: ['Turn from the ribs so the whole shoulder comes across.', 'Lower back stays pressed into the floor.'],
       mistake: 'Pulling on the neck with the hands.',
     });
@@ -2643,8 +2643,12 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     L.push({
       id: 'leg-extension', name: 'Leg extension', group: 'Quads', kind: 'Weights', equip: ['Leg extension machine'],
       primary: ['quads'], secondary: [], cam: [70, 8],
-      keys: [H.with(base, { foot: [0.12, 0.19, 0.33], toe: 0 }), H.with(base, { foot: [0.12, 0.6, 0.79], toe: -5 })],
-      tl: [[1, 0.9], [1, 0.5], [0, 1.4], [0, 0.35]],
+      keys: (() => {
+        const hj = PetroFig.dbg.framesOf(base).hj[1], d = Math.PI / 180, th = 4 * d;
+        const K = [hj[0] + 0.02, hj[1] - 0.43 * Math.sin(th), hj[2] + 0.43 * Math.cos(th)];
+        return [-4, 30, 62, 86].map((a, i) => H.with(base, { foot: [K[0], K[1] - 0.42 * Math.cos(a * d), K[2] + 0.42 * Math.sin(a * d)], toe: i === 3 ? -5 : 0 }));
+      })(),
+      tl: [[1, 0.32, 'in'], [2, 0.3, 'lin'], [3, 0.32, 'out'], [3, 0.5], [2, 0.5, 'in'], [1, 0.45, 'lin'], [0, 0.5, 'out'], [0, 0.35]],
       props: (o, p, P, v) => {
         const out = [...P.slab([0, 0.5, 0.1], [0.42, 0.08, 0.52], 'pad'), ...P.tilt([0, 0.92, -0.26], 0.74, -78, { w: 0.34 }), ...P.slab([0, 0.23, 0.02], [0.14, 0.46, 0.34], 'frame'), ...P.slab([0, 0.03, 0.05], [0.6, 0.06, 0.9], 'frame'), ...P.column(-0.5, -0.3, { h: 1.3 })];
         const ends = SIDES.map((k) => { const s = shinBack(v, o, k); return v.add(o.feet[k], v.add(v.mul(s.w, -0.06), v.mul(s.back, -0.09))); });
@@ -2653,7 +2657,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
         return out;
       },
       steps: ['Sit with your back against the pad and the roller resting on the front of your ankles.', 'Straighten your knees until your legs are level, and squeeze your thighs hard.', 'Lower the weight slowly back to the start.'],
-      cues: ['Hold the handles and keep your hips down on the seat.', 'One second squeeze at the top of every rep.'],
+      cues: ['Only the knee bends and straightens. Your thighs stay pressed into the seat.', 'Hold the handles and keep your hips down on the seat.', 'One second squeeze at the top of every rep.'],
       mistake: 'Kicking the weight up and letting it drop.',
     });
   }
@@ -2662,14 +2666,16 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     const stand = H.with(S, { foot: { L: st, R: st }, knee: [0.12, 0, 1], toe: { L: 0, R: 0 }, plant: { L: 1, R: 1 }, kneeH: 1 }, DBS);
     const lun = Object.assign(H.with(S, { hip: [0, 0.56, 0.28], pel: [8, 0, 0], nk: -6, foot: { L: [0.12, 0.075, 0.62], R: [0.12, 0.13, -0.02] }, knee: { L: [0.12, 0, 1], R: [0.1, -0.8, 0.6] }, toe: { L: 0, R: -45 }, plant: { L: 1, R: 0 }, kneeH: { L: 1, R: 0 } }), DBS);
     Object.assign(stand, DBS);
+    const step = Object.assign(H.with(S, { hip: [0, 0.9, 0.1], pel: [4, 0, 0], nk: -4, foot: { L: [0.12, 0.24, 0.4], R: st }, knee: { L: [0.12, 0.3, 1], R: [0.12, 0, 1] }, toe: { L: -22, R: 0 }, plant: { L: 0, R: 1 }, kneeH: { L: 0, R: 1 } }), DBS);
+    lun.toe = { L: 0, R: -45 };
     L.push({
       id: 'dumbbell-forward-lunge', name: 'Dumbbell forward lunge', group: 'Quads', kind: 'Weights', equip: ['Dumbbells'],
-      primary: ['quads', 'glutes'], secondary: ['hamstrings', 'calves', 'abs'], cam: [70, 8],
-      keys: [stand, lun, H.mirror(lun)],
-      tl: [[1, 0.9], [1, 0.25], [0, 0.8], [0, 0.3], [2, 0.9], [2, 0.25], [0, 0.8], [0, 0.3]],
+      primary: ['quads', 'glutes'], secondary: ['hamstrings', 'calves', 'abs'], cam: [72, 8],
+      keys: [stand, step, lun],
+      tl: [[1, 0.45], [2, 0.5, 'out'], [2, 0.35], [1, 0.5, 'in'], [0, 0.45, 'out'], [0, 0.4]],
       props: (o, p, P) => [...P.dumbbell(o.hands.L, o.cz), ...P.dumbbell(o.hands.R, o.cz)],
-      steps: ['Stand tall with a dumbbell in each hand.', 'Take a long step forward and lower until both knees are bent to about 90 degrees.', 'Push hard off the front foot to return to standing, then step with the other leg.'],
-      cues: ['Front knee tracks over the toes with the heel down.', 'Torso stays tall. The dumbbells hang straight down.'],
+      steps: ['Stand tall with a dumbbell in each hand.', 'Lift one foot and take a long step forward, landing heel first, then lower until both knees are bent to about 90 degrees.', 'Push up through your front heel to step back to standing, then step with the other leg.'],
+      cues: ['Drive through the front heel to step back. Your toes stay light.', 'Front knee tracks over the toes. Torso stays tall and the dumbbells hang straight down.'],
       mistake: 'Taking a short step so the front heel lifts.',
     });
   }
@@ -2705,14 +2711,14 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     const arm = (d) => ({ arc: [0.02, 0, 0, 0.6, d] });
     L.push({
       id: 'jump-squat', name: 'Jump squat', group: 'Quads', kind: 'Bodyweight', equip: ['Body only'],
-      primary: ['quads', 'glutes'], secondary: ['calves', 'hamstrings'], cam: [62, 8],
+      primary: ['quads', 'glutes'], secondary: ['calves', 'hamstrings'], cam: [78, 8],
       keys: [Object.assign({ hip: [0, 0.935, 0], pel: [0, 0, 0], nk: 0, foot: flat, toe: 0, hand: arm(-80) }, com),
-        Object.assign({ hip: [0, 0.56, -0.2], pel: [36, 0, 0], nk: -24, foot: flat, toe: 0, hand: arm(-140) }, com),
-        Object.assign({ hip: [0, 0.99, 0.02], pel: [0, 0, 0], nk: 0, foot: tip, toe: 38, hand: arm(40) }, com),
-        Object.assign({ hip: [0, 1.22, 0.02], pel: [0, 0, 0], nk: 0, foot: [0.15, tip[1] + 0.23, tip[2]], toe: 44, hand: arm(70) }, com),
+        Object.assign({ hip: [0, 0.56, -0.2], pel: [36, 0, 0], nk: -24, foot: flat, toe: 0, hand: arm(34) }, com),
+        Object.assign({ hip: [0, 0.99, 0.02], pel: [0, 0, 0], nk: 0, foot: tip, toe: 38, hand: arm(-125) }, com),
+        Object.assign({ hip: [0, 1.22, 0.02], pel: [0, 0, 0], nk: 0, foot: [0.15, tip[1] + 0.23, tip[2]], toe: 44, hand: arm(-145) }, com),
         Object.assign({ hip: [0, 0.7, -0.14], pel: [28, 0, 0], nk: -16, foot: flat, toe: 0, hand: arm(-40) }, com)],
       tl: [[1, 0.5], [2, 0.16, 'lin'], [3, 0.2, 'out'], [2, 0.2, 'in'], [4, 0.16, 'out'], [4, 0.3], [0, 0.55], [0, 0.3]],
-      steps: ['Stand with your feet shoulder width apart.', 'Squat down until your thighs are about level, swinging your arms back.', 'Jump as high as you can, land softly on your whole foot and sink straight into the next squat.'],
+      steps: ['Stand with your feet shoulder width apart.', 'Squat down until your thighs are about level, reaching your arms forward in line with your shoulders.', 'Explode up into a jump and drive your arms back, then land softly on your whole foot and sink into the next squat.'],
       cues: ['Land quietly with knees over toes.', 'Full extension in the air: hips, knees and ankles.'],
       mistake: 'Knees caving in on the landing.',
     });
@@ -4646,11 +4652,11 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
       id: 'trx-row', name: 'TRX row', group: 'Upper back', kind: 'Bodyweight', equip: ['TRX straps'],
       primary: ['upperBack', 'lats'], secondary: ['biceps', 'rearDelts', 'abs'], cam: [48, 10],
       keys: [Object.assign({ hip: bot.hip, pel: bot.pel, hand: [0.17, 1.3, 0.06], elbow: el, nk: 5 }, legs),
-        Object.assign({ hip: top.hip, pel: top.pel, hand: [0.17, 0.93, 0.58], elbow: el, nk: 8 }, legs)],
+        Object.assign({ hip: top.hip, pel: top.pel, hand: H.ch(0.2, 0.12, 0.1), elbow: [0.25, -1, -0.5], nk: 8 }, legs)],
       tl: [[1, 1.0], [1, 0.3], [0, 1.4], [0, 0.4]],
       props: (o, p, P) => straps(P, [0, 1.75, 0.35], o.hands, true),
-      steps: ['Hold the handles and walk your feet forward until the straps are tight, then lean back with your arms straight.', 'Squeeze your glutes so your body is one straight line from heels to head.', 'Pull your chest up to your hands, then lower slowly until your arms are straight again.'],
-      cues: ['Move like a plank. Your hips stay up the whole time.', 'Pull your shoulder blades back and down before your elbows bend.', 'Walk your feet forward to make it easier, back to make it harder.'],
+      steps: ['Hold the handles and walk your feet forward until the straps are tight, then lean back with your arms straight.', 'Squeeze your glutes so your body is one straight line from heels to head.', 'Row your elbows back to your rib cage until your hands are beside your chest, then lower slowly until your arms are straight again.'],
+      cues: ['Elbows stay tight and drive back to your ribs, not out wide.', 'Move like a plank. Your hips stay up the whole time.', 'Walk your feet forward to make it easier, back to make it harder.'],
       mistake: 'Letting the hips sag or shrugging up toward the ears so the back stops working.',
       dose: '3 sets of 8 to 12.',
       swap: 'No TRX: use a bar set at hip height or a sturdy table for the inverted row.',
@@ -4659,61 +4665,52 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 
   /* ---- TRX pike (Core) ---- */
   {
-    const fy = 0.5, az = -1.22;
-    const pl = H.plank(fy, az, 5);
-    const hand = [0.14, 0.03, 0.06], el = [0.3, 0, -1];
-    const A = [0, 1.6, -1.15];
+    const fy = 0.5, az = -1.22, A = [0, 1.6, -1.15];
+    const ankle = [0.1, fy, az], hand = [0.15, 0.03, 0.06], el = [0.3, 0, -1], D = Math.PI / 180;
+    const ARM = 0.618;
+    // hips ride on an arc around the still feet; the pelvis angle is solved so the arms stay straight with the hands where they are
+    const key = (th) => {
+      const hip = [0, fy + 0.876 * Math.sin(th * D), az + 0.876 * Math.cos(th * D)];
+      let lo = 60, hi = 179;
+      const gap = (p) => { const F = PetroFig.dbg.framesOf({ hip, pel: [p, 0, 0], sp: [0, 0, 0] }); const sh = F.sh[1]; return Math.hypot(sh[0] - hand[0], sh[1] - hand[1], sh[2] - hand[2]) - ARM; };
+      for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (gap(lo) * gap(m) <= 0) hi = m; else lo = m; }
+      return { hip, pel: [(lo + hi) / 2, 0, 0], nk: th > 20 ? 14 : -10, hand, elbow: el, foot: ankle, knee: [0.1, 0, 1], toe: 0 };
+    };
     L.push({
       id: 'trx-pike', name: 'TRX pike', group: 'Core', kind: 'Bodyweight', equip: ['TRX straps'],
-      primary: ['abs'], secondary: ['shoulders', 'hipFlexors', 'obliques'], cam: [66, 10],
-      keys: [{ hip: pl.hip, pel: pl.pel, nk: -10, hand, elbow: el, foot: [0.1, fy, az], knee: [0.1, 0, 1], toe: 0 },
-        { hip: [0, 1.0, -0.2], pel: [156, 0, 0], nk: 12, hand, elbow: el, foot: [0.1, fy + 0.05, -0.92], knee: [0.1, 0, 1], toe: 0 }],
-      tl: [[1, 1.3], [1, 0.3], [0, 1.2], [0, 0.4]],
+      primary: ['abs'], secondary: ['shoulders', 'hipFlexors', 'obliques'], cam: [70, 8],
+      keys: [key(4), key(18), key(32)],
+      tl: [[1, 0.55, 'in'], [2, 0.6, 'out'], [2, 0.4], [1, 0.55, 'in'], [0, 0.6, 'out'], [0, 0.4]],
+      rawTime: true,
       props: (o, p, P) => [...straps(P, A, o.feet, false), ...cradle(P, o, 'L'), ...cradle(P, o, 'R')],
-      steps: ['Put your feet in the cradles and set your hands under your shoulders in a plank.', 'Keep your legs straight and lift your hips straight up toward the ceiling, rolling your feet toward your hands.', 'Lower slowly back to a straight plank.'],
-      cues: ['Hips go up, not back. Your shoulders stay over your hands.', 'Squeeze your stomach and tuck your tailbone as you lift.', 'Bend your knees in (a TRX tuck) to make it easier.'],
-      mistake: 'Dropping the hips and sagging in the lower back at the bottom.',
+      steps: ['Put your feet in the cradles and set your hands under your shoulders in a plank, arms straight.', 'Keep your arms and legs straight and lift your hips up toward the ceiling. Your feet stay where they are.', 'Lower your hips slowly back to a straight plank.'],
+      cues: ['Only the hips move. Arms stay locked and feet stay still.', 'Squeeze your stomach and tuck your tailbone as you lift.', 'Bend your knees in (a TRX tuck) to make it easier.'],
+      mistake: 'Bending the arms or swinging the feet to get the hips up.',
       dose: '3 sets of 8 to 10.',
       swap: 'No TRX: put your feet on a towel on a smooth floor and slide them in for a slider pike.',
     });
   }
 
-  /* ---- TRX body saw (Core) ---- */
+  /* ---- TRX rollout (Core) ---- */
   {
-    const fy = 0.5, az = -1.25, A = [0, 1.6, -1.25];
-    const pl = H.plank(fy, az, -6);
-    const mk = (dz) => ({ hip: [pl.hip[0], pl.hip[1], pl.hip[2] + dz], pel: pl.pel, nk: -10, hand: [0.13, 0.035, 0.36 + dz], elbow: [0, -0.5, 1], foot: [0.1, fy + Math.abs(dz) * 0.1, az + dz], knee: [0.1, 0, 1], toe: 0 });
+    const A = [0, 2.0, -0.75], D = Math.PI / 180;
+    const legs = { foot: [0.1, 0.08, -0.75], knee: [0.1, -0.3, 1], kneeH: 1, toe: 75 };
+    const K = [0, 0.1, -0.33];
+    // knees planted, hips ride forward and low on an arc around the knees, body one straight line
+    const key = (phi, arm) => Object.assign({ hip: [0, K[1] + 0.43 * Math.sin(phi * D), K[2] + 0.43 * Math.cos(phi * D)], pel: [90 - phi, 0, 0], nk: -6,
+      hand: { arc: [0.13, 0, 0, 0.615, arm] }, elbow: [0.4, 1, -0.3] }, legs);
     L.push({
-      id: 'trx-body-saw', name: 'TRX body saw', group: 'Core', kind: 'Bodyweight', equip: ['TRX straps'],
-      primary: ['abs'], secondary: ['shoulders', 'lats', 'obliques'], cam: [78, 10],
-      keys: [mk(-0.25), mk(0.35)],
-      tl: [[1, 1.2, 'sine'], [1, 0.2], [0, 1.2, 'sine'], [0, 0.2]],
-      props: (o, p, P) => [...straps(P, A, o.feet, false), ...cradle(P, o, 'L'), ...cradle(P, o, 'R'), ...P.mat(-0.5, { len: 2.4 })],
-      steps: ['Put your feet in the cradles and set your forearms on the floor under your shoulders in a plank.', 'Keep your body in one straight line and rock your whole body forward over your elbows.', 'Rock back to the start in the same slow, controlled way.'],
-      cues: ['Brace like you are about to be punched and keep your glutes squeezed.', 'Small, slow rocks beat big, loose ones.', 'The further you rock, the harder it gets.'],
-      mistake: 'Letting the lower back sag or the hips pike up as you rock forward.',
-      dose: '3 sets of 10 to 12 rocks.',
-      swap: 'No TRX: do a plank with your forearms on a towel or slider and slide forward and back.',
-    });
-  }
-
-  /* ---- TRX fallout (Core) ---- */
-  {
-    const A = [0, 1.95, -0.4], el = [0.3, 0.3, -1];
-    const b0 = H.ballFoot(0, 0, 0, 20), b1 = H.ballFoot(0, 0, 0, 52);
-    const p0 = H.plank(b0[1], b0[2], 72), p1 = H.plank(b1[1], b1[2], 38);
-    L.push({
-      id: 'trx-fallout', name: 'TRX fallout', group: 'Core', kind: 'Bodyweight', equip: ['TRX straps'],
-      primary: ['abs'], secondary: ['lats', 'shoulders', 'obliques'], cam: [76, 8],
-      keys: [{ hip: p0.hip, pel: p0.pel, nk: 0, hand: [0.18, 1.2, 0.48], elbow: [0.4, -1, -0.2], foot: [0.1, b0[1], b0[2]], knee: [0.1, 0, 1], toe: 20, plant: 1, kneeH: 1 },
-        { hip: p1.hip, pel: p1.pel, sp: [0, 0, 0], nk: -6, hand: [0.18, 1.32, 1.12], elbow: [0.3, 0.2, -1], foot: [0.1, b1[1], b1[2]], knee: [0.1, 0, 1], toe: 52, plant: 1, kneeH: 1 }],
-      tl: [[1, 1.3], [1, 0.4], [0, 1.4], [0, 0.4]],
-      props: (o, p, P) => straps(P, A, o.hands, true),
-      steps: ['Face away from the anchor and hold the handles at chest height with a tall, braced body.', 'Lean forward as one straight piece and let your arms reach long overhead.', 'Pull yourself back to the start by squeezing your stomach and driving your elbows down.'],
-      cues: ['Squeeze your glutes and tuck your tailbone so your lower back never sags.', 'Only lean as far as you can keep a straight line.', 'Step your feet back to make it easier, forward to make it harder.'],
-      mistake: 'Letting the hips drop and the lower back arch as the arms reach out.',
+      id: 'trx-rollout', name: 'TRX rollout', group: 'Core', kind: 'Bodyweight', equip: ['TRX straps', 'Mat'],
+      primary: ['abs'], secondary: ['lats', 'shoulders', 'obliques'], cam: [74, 8],
+      keys: [key(78, 4), key(62, 50), key(46, 92)],
+      tl: [[1, 0.6, 'in'], [2, 0.7, 'out'], [2, 0.4], [1, 0.6, 'in'], [0, 0.7, 'out'], [0, 0.4]],
+      rawTime: true,
+      props: (o, p, P) => [...straps(P, A, o.hands, true), ...P.mat(-0.3, { len: 1.6 })],
+      steps: ['Kneel on a mat facing away from the anchor and hold the handles in front of you, arms straight and palms facing down.', 'Keep your hips low and roll your body forward as one straight line while your arms reach forward and up.', 'Pull the straps down with straight arms and squeeze your stomach to bring yourself back to the start.'],
+      cues: ['Arms stay straight and palms face the floor the whole time.', 'Hips stay low, in line with your shoulders and knees. No piking.', 'Only go as far as you can keep your lower back from sagging.'],
+      mistake: 'Bending the elbows or pushing the hips back instead of rolling forward as one piece.',
       dose: '3 sets of 8 to 10.',
-      swap: 'No TRX: use an ab wheel from your knees, or slide your forearms forward on a towel.',
+      swap: 'No TRX: use an ab wheel from your knees, or slide your hands forward on a towel.',
     });
   }
 
@@ -4724,11 +4721,11 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     L.push({
       id: 'side-plank-reach', name: 'Side plank with reach', group: 'Core', kind: 'Bodyweight', equip: ['Mat'],
       primary: ['obliques'], secondary: ['abs', 'shoulders', 'upperBack'], cam: [12, 14],
-      keys: [H.with(base, { hip: [0, 0.38, 0], hand: { L: { w: [-0.5, 1.2, 0.0] }, R: low }, elbow: { L: { w: [0, 1, 0] }, R: { w: [0, -1, 0] } } }),
-        H.with(base, { hip: [0, 0.38, 0], sp: [14, 0, -45], hand: { L: { w: [-0.45, 0.22, 0.5] }, R: low }, elbow: { L: { w: [0, 0.5, -1] }, R: { w: [0, -1, 0] } } })],
+      keys: [H.with(base, { hip: [0, 0.38, 0], sp: [16, 0, -48], hand: { L: { w: [-0.5, 0.3, -0.16] }, R: low }, elbow: { L: { w: [0, 1, -0.4] }, R: { w: [0, -1, 0] } } }),
+        H.with(base, { hip: [0, 0.38, 0], hand: { L: { w: [-0.5, 1.2, 0.0] }, R: low }, elbow: { L: { w: [0, 1, 0] }, R: { w: [0, -1, 0] } } })],
       tl: [[1, 1.2], [1, 0.4], [0, 1.2], [0, 0.4]],
       props: (o, p, P) => P.slab([0.12, 0.006, 0.05], [1.9, 0.012, 0.7], 'mat'),
-      steps: ['Set up in a side plank with your elbow under your shoulder and your top arm pointing at the ceiling.', 'Rotate your chest toward the floor and thread your top arm under your body.', 'Open back up and reach tall again.'],
+      steps: ['Set up in a side plank with your elbow under your shoulder and your top hand threaded under your bottom armpit.', 'Rotate your chest open and reach your top arm all the way up to the ceiling.', 'Thread it back under your armpit with control and repeat.'],
       cues: ['Hips stay lifted the whole time. Only your upper body turns.', 'Follow your hand with your eyes.', 'Drop to your bottom knee to make it easier.'],
       mistake: 'Letting the hips sag toward the floor as you rotate.',
       dose: '3 sets of 8 to 10 each side.',
