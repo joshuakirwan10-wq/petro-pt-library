@@ -4622,7 +4622,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
   const nrm = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
   // two TRX straps from a point on a rig bar down to each handle or foot cradle
   const straps = (P, top, ends, handle) => {
-    const out = [...P.bar(top[1], top[2], { half: 0.55 })];
+    const out = [P.raw.box([top[0], top[1] + 0.03, top[2]], [[0.09, 0, 0], [0, 0.03, 0], [0, 0, 0.05]], 'frame', 0, 1)];
     for (const k of ['L', 'R']) {
       const e = ends[k], t = [top[0] + (k === 'L' ? 0.035 : -0.035), top[1], top[2]];
       out.push(P.raw.rod(t, e, 0.012, 'iron'));
@@ -4641,14 +4641,14 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
   {
     const a = 0.1, z = 1.3, bot = H.supine(a, z, 24), top = H.supine(a, z, 42);
     const legs = { foot: [0.1, a, z], knee: [0.1, 0, 1], toe: 0 };
-    const el = [0.45, 0, -1];
+    const el = [0.2, -0.3, -1];
     L.push({
       id: 'trx-row', name: 'TRX row', group: 'Upper back', kind: 'Bodyweight', equip: ['TRX straps'],
-      primary: ['upperBack', 'lats'], secondary: ['biceps', 'rearDelts', 'abs'], cam: [74, 6],
+      primary: ['upperBack', 'lats'], secondary: ['biceps', 'rearDelts', 'abs'], cam: [48, 10],
       keys: [Object.assign({ hip: bot.hip, pel: bot.pel, hand: [0.17, 1.3, 0.06], elbow: el, nk: 5 }, legs),
-        Object.assign({ hip: top.hip, pel: top.pel, hand: [0.17, 1.2, 0.4], elbow: el, nk: 8 }, legs)],
+        Object.assign({ hip: top.hip, pel: top.pel, hand: [0.17, 0.93, 0.58], elbow: el, nk: 8 }, legs)],
       tl: [[1, 1.0], [1, 0.3], [0, 1.4], [0, 0.4]],
-      props: (o, p, P) => straps(P, [0, 2.1, 0.3], o.hands, true),
+      props: (o, p, P) => straps(P, [0, 1.75, 0.35], o.hands, true),
       steps: ['Hold the handles and walk your feet forward until the straps are tight, then lean back with your arms straight.', 'Squeeze your glutes so your body is one straight line from heels to head.', 'Pull your chest up to your hands, then lower slowly until your arms are straight again.'],
       cues: ['Move like a plank. Your hips stay up the whole time.', 'Pull your shoulder blades back and down before your elbows bend.', 'Walk your feet forward to make it easier, back to make it harder.'],
       mistake: 'Letting the hips sag or shrugging up toward the ears so the back stops working.',
@@ -4662,7 +4662,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     const fy = 0.5, az = -1.22;
     const pl = H.plank(fy, az, 5);
     const hand = [0.14, 0.03, 0.06], el = [0.3, 0, -1];
-    const A = [0, 2.3, -1.1];
+    const A = [0, 1.6, -1.15];
     L.push({
       id: 'trx-pike', name: 'TRX pike', group: 'Core', kind: 'Bodyweight', equip: ['TRX straps'],
       primary: ['abs'], secondary: ['shoulders', 'hipFlexors', 'obliques'], cam: [66, 10],
@@ -4680,13 +4680,13 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 
   /* ---- TRX body saw (Core) ---- */
   {
-    const fy = 0.5, az = -1.25, A = [0, 2.3, -1.25];
+    const fy = 0.5, az = -1.25, A = [0, 1.6, -1.25];
     const pl = H.plank(fy, az, -6);
     const mk = (dz) => ({ hip: [pl.hip[0], pl.hip[1], pl.hip[2] + dz], pel: pl.pel, nk: -10, hand: [0.13, 0.035, 0.36 + dz], elbow: [0, -0.5, 1], foot: [0.1, fy + Math.abs(dz) * 0.1, az + dz], knee: [0.1, 0, 1], toe: 0 });
     L.push({
       id: 'trx-body-saw', name: 'TRX body saw', group: 'Core', kind: 'Bodyweight', equip: ['TRX straps'],
-      primary: ['abs'], secondary: ['shoulders', 'lats', 'obliques'], cam: [62, 12],
-      keys: [mk(-0.12), mk(0.22)],
+      primary: ['abs'], secondary: ['shoulders', 'lats', 'obliques'], cam: [78, 10],
+      keys: [mk(-0.25), mk(0.35)],
       tl: [[1, 1.2, 'sine'], [1, 0.2], [0, 1.2, 'sine'], [0, 0.2]],
       props: (o, p, P) => [...straps(P, A, o.feet, false), ...cradle(P, o, 'L'), ...cradle(P, o, 'R'), ...P.mat(-0.5, { len: 2.4 })],
       steps: ['Put your feet in the cradles and set your forearms on the floor under your shoulders in a plank.', 'Keep your body in one straight line and rock your whole body forward over your elbows.', 'Rock back to the start in the same slow, controlled way.'],
@@ -4699,7 +4699,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 
   /* ---- TRX fallout (Core) ---- */
   {
-    const A = [0, 2.3, -0.4], el = [0.3, 0.3, -1];
+    const A = [0, 1.95, -0.4], el = [0.3, 0.3, -1];
     const b0 = H.ballFoot(0, 0, 0, 20), b1 = H.ballFoot(0, 0, 0, 52);
     const p0 = H.plank(b0[1], b0[2], 72), p1 = H.plank(b1[1], b1[2], 38);
     L.push({
