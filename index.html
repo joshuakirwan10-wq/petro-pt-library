@@ -135,6 +135,7 @@ ul.cues { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .plain { margin: 0 0 6px; }
 .more { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .more button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 12px; font-weight: 600; cursor: pointer; }
+.more .kind { flex: none; white-space: nowrap; }
 .note { font-size: 14px; color: var(--muted); margin: 0; }
 .wa-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 52px; padding: 0 18px; border-radius: 14px; background: var(--wa); color: #FFFFFF; font-family: var(--body); font-weight: 600; font-size: 17px; white-space: nowrap; text-decoration: none; width: 100%; max-width: 380px; box-sizing: border-box; }
 .wa-btn svg { width: 22px; height: 22px; flex: none; }
@@ -295,6 +296,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
         <section><p class="lbl">Watch out for</p><p class="warn" id="d-mistake"></p></section>
         <section id="d-dose-s" hidden><p class="lbl">Typical dose</p><p class="plain" id="d-dose"></p><p class="note">If your plan says something different, follow your plan.</p></section>
         <section id="d-swap-s" hidden><p class="lbl">If you have no kit</p><p class="plain" id="d-swap"></p></section>
+        <section id="d-pair-s" hidden><p class="lbl">Warm up with</p><ul class="more" id="d-warm"></ul><p class="lbl" style="margin-top:16px">Stretch after</p><ul class="more" id="d-cool"></ul></section>
         <section><p class="lbl" id="d-more-h"></p><ul class="more" id="d-more"></ul></section>
         <section><p class="lbl">Not sure about this move?</p><a class="wa-btn ghost" id="d-wa" href="https://wa.me/27635028839" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M12 3C6.98 3 3 6.69 3 11.25c0 2.42 1.13 4.6 2.94 6.11L5.2 21l3.84-1.86c.93.24 1.92.36 2.96.36 5.02 0 9-3.69 9-8.25S17.02 3 12 3zm-3.6 9.4a1.15 1.15 0 1 1 0-2.3 1.15 1.15 0 0 1 0 2.3zm3.6 0a1.15 1.15 0 1 1 0-2.3 1.15 1.15 0 0 1 0 2.3zm3.6 0a1.15 1.15 0 1 1 0-2.3 1.15 1.15 0 0 1 0 2.3z"/></svg>Ask Josh on WhatsApp</a></section>
         <p class="note">Petro Personal Training</p>
@@ -4460,13 +4462,13 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     if (o.type === 'zone2') P.push({ name: 'Zone 2', sec: o.minutes * 60, kind: 'work', sub: 'Stay in your range' });
     if (o.type === 'flow') o.steps.forEach((d, i) => {
       if (i) P.push({ name: 'Switch', sec: o.gap, kind: 'rest', sub: 'Next: ' + d.name, id: d.id });
-      P.push({ name: d.name, sec: d.sec, kind: 'work', sub: 'Drill ' + (i + 1) + ' of ' + o.steps.length, id: d.id });
+      P.push({ name: d.name, sec: d.sec, kind: 'work', sub: (o.unit || 'Drill') + ' ' + (i + 1) + ' of ' + o.steps.length, id: d.id });
     });
     return P;
   }
   function summary(o) {
     if (o.type === 'interval') { const t = o.rounds * o.work + (o.rounds - 1) * o.rest; const u = (x) => x >= 60 ? (x / 60) + (x === 60 ? ' minute' : ' minutes') : x + ' seconds'; return o.rounds + ' rounds of ' + u(o.work) + ' ' + (o.workName ? o.workName.toLowerCase() : 'hard') + ', ' + u(o.rest) + ' ' + (o.restName ? o.restName.toLowerCase() : 'rest') + '. ' + fmt(t) + ' in total.'; }
-    if (o.type === 'flow') { const t = o.steps.reduce((a, d) => a + d.sec, 0) + (o.steps.length - 1) * o.gap; return o.steps.length + ' drills, ' + o.steps[0].sec + ' seconds each with a ' + o.gap + ' second switch. ' + fmt(t) + ' in total.'; }
+    if (o.type === 'flow') { const t = o.steps.reduce((a, d) => a + d.sec, 0) + (o.steps.length - 1) * o.gap; return o.steps.length + ' ' + (o.unit ? o.unit.toLowerCase() + 'es' : 'drills') + ', ' + o.steps[0].sec + ' seconds each with a ' + o.gap + ' second switch. ' + fmt(t) + ' in total.'; }
     if (o.type === 'stopwatch') return 'One steady run. The clock counts up until you tap Finish.';
     if (o.type === 'runwalk') return 'Run ' + (o.run / 60) + ' minutes, walk ' + o.walk + ' seconds, and repeat until you reach the distance. Tap Finish at the end.';
     if (o.type === 'emom') return 'Every minute on the minute for ' + o.minutes + ' minutes. ' + o.task;
@@ -4963,6 +4965,203 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
   }
 })();
 
+/* ---------------- COOL DOWN AND MOBILITY ---------------- */
+(function () {
+  const H = PH, S = H.STAND, L = EXERCISES;
+  const C = (o) => L.push(Object.assign({ cat: 'Mobility', group: 'Cool down and mobility', kind: 'Cool down', equip: ['Mat'] }, o));
+  const BREATH = [[1, 1.8, 'sine'], [0, 1.8, 'sine']];
+  const hold = (k, d) => [k, H.with(k, d)];
+  const st = [0.12, 0.075, 0.03];
+  const HIPS = { hand: H.pel(0.17, 0.06, 0.03), elbow: [1, 0, -0.4] };
+  const mat = (z, o) => (o2, p, P) => P.mat(z, Object.assign({ len: 2.0, w: 0.4 }, o || {}));
+  const HOLD = '30 to 45 seconds each side.';
+
+  /* child's pose */
+  {
+    const k = { hip: [0, 0.37, -0.5], pel: [98, 0, 0], sp: [14, 0, 0], nk: 26, foot: [0.13, 0.07, -0.66], toe: 80, knee: { w: [0, -0.4, 1] }, hand: [0.2, 0.03, 0.48], elbow: [0.3, 1, 0] };
+    C({ id: 'childs-pose', name: "Child's pose", hold: true, primary: ['lowerBack', 'lats'], secondary: ['glutes', 'shoulders'], cam: [82, 22],
+      keys: hold(k, { hip: [0, 0.38, -0.49], sp: [10, 0, 0] }), tl: BREATH, props: mat(-0.2),
+      steps: ['Kneel with your big toes together and your knees a little apart.', 'Sit your hips back toward your heels and walk your hands forward on the floor.', 'Rest your forehead down and breathe slowly into your back.'],
+      cues: ['Let your chest sink toward the floor with every breath out.', 'Reach your fingertips long to feel it in your lats.'],
+      mistake: 'Holding your breath and tensing the shoulders.',
+      dose: '45 to 60 seconds.' });
+  }
+
+  /* downward dog */
+  {
+    const k = { hip: [0, 0.84, -0.52], pel: [138, 0, 0], nk: 20, foot: [0.12, 0.075, -0.95], toe: 0, plant: 1, kneeH: 1, knee: [0.12, 0, 1], hand: [0.2, 0.03, 0.18], elbow: [0.45, 0, -1] };
+    C({ id: 'downward-dog', name: 'Downward dog', hold: true, primary: ['hamstrings', 'calves'], secondary: ['lats', 'shoulders', 'lowerBack'], cam: [78, 8],
+      keys: hold(k, { hip: [0, 0.86, -0.54] }), tl: BREATH, props: mat(-0.4, { len: 1.8 }),
+      steps: ['Start on your hands and knees, then tuck your toes and lift your hips up and back.', 'Straighten your arms and legs into an upside down V.', 'Press your heels toward the floor and your chest toward your thighs, and breathe.'],
+      cues: ['Long spine first. Bend the knees a little if your back rounds.', 'Push the floor away with your hands.'],
+      mistake: 'Rounding the back to get the heels down.',
+      dose: '30 to 45 seconds.' });
+  }
+
+  /* pigeon stretch */
+  {
+    const k = { hip: [0, 0.3, 0.02], pel: [24, 0, 0], sp: [10, 0, 0], nk: -4,
+      foot: { L: { w: [-0.16, 0.08, 0.2] }, R: [0.12, 0.08, -0.82] }, knee: { L: [1, -0.4, 0.5], R: [0.1, -1, 0.2] }, toe: { L: 0, R: 80 }, plant: 0,
+      hand: [0.24, 0.03, 0.3], elbow: [0.4, 0, -1] };
+    C({ id: 'pigeon-stretch', name: 'Pigeon stretch', hold: true, primary: ['glutes'], secondary: ['hipFlexors', 'lowerBack'], cam: [24, 18],
+      keys: hold(k, { pel: [32, 0, 0], sp: [14, 0, 0] }), tl: BREATH, props: mat(-0.25),
+      steps: ['From your hands and knees, bring one knee forward behind your wrist and lay that shin across in front of you.', 'Slide the other leg straight back with the top of the foot on the floor.', 'Square your hips, then walk your hands forward and fold over the front leg.'],
+      cues: ['Keep your hips level. Put a cushion under the front hip if it floats.', 'Breathe out and sink a little lower each time.'],
+      mistake: 'Leaning onto one hip so the stretch disappears.',
+      dose: HOLD });
+  }
+
+  /* half kneeling hip flexor stretch */
+  {
+    const k = { hip: [0, 0.5, -0.02], pel: [-6, 0, 0], nk: 0, foot: { L: [0.12, 0.075, 0.45], R: [0.12, 0.08, -0.58] }, knee: { L: [0.12, 0, 1], R: [0.1, -1, 0.2] }, toe: { L: 0, R: 80 }, plant: { L: 1, R: 0 }, kneeH: { L: 1, R: 0 },
+      hand: { L: H.pel(0.17, 0.06, 0.03), R: H.sh(0.04, 0.6, 0.04) }, elbow: { L: [1, 0, -0.4], R: [0.3, 0, -1] } };
+    C({ id: 'half-kneeling-hip-flexor-stretch', name: 'Half kneeling hip flexor stretch', hold: true, primary: ['hipFlexors', 'quads'], secondary: ['abs'], cam: [72, 8],
+      keys: hold(k, { hip: [0, 0.49, 0.04], sp: [-4, 0, 0] }), tl: BREATH, props: mat(0),
+      steps: ['Kneel on one knee with the other foot flat in front, both knees bent to about 90 degrees.', 'Tuck your tailbone under and squeeze the glute of the back leg.', 'Shift your hips forward until you feel a stretch in the front of the back hip, and reach that arm up.'],
+      cues: ['Tuck first, then move forward. The tuck is what makes it work.', 'Ribs down. Do not arch your lower back.'],
+      mistake: 'Arching the lower back and lunging far forward with no glute squeeze.',
+      dose: HOLD });
+  }
+
+  /* standing quad stretch */
+  {
+    const k = H.with(S, { foot: { L: H.hp(0.03, -0.1, -0.16), R: st }, knee: { L: [0.05, -1, 0.1], R: [0.12, 0, 1] }, toe: { L: 40, R: 0 }, plant: { L: 0, R: 1 }, kneeH: { L: 0, R: 1 },
+      hand: { L: H.pel(0.13, -0.13, -0.24), R: H.pel(0.17, 0.06, 0.03) }, elbow: { L: [0.4, 0, -1], R: [1, 0, -0.4] } });
+    C({ id: 'standing-quad-stretch', name: 'Standing quad stretch', hold: true, equip: ['Body only'], primary: ['quads'], secondary: ['hipFlexors'], cam: [72, 8],
+      keys: hold(k, { pel: [-3, 0, 0] }), tl: BREATH,
+      steps: ['Stand tall and hold a wall if you need balance.', 'Bend one knee and hold the foot behind you, pulling the heel toward your glute.', 'Keep the knees together and push the hip forward a little.'],
+      cues: ['Knee points straight down at the floor.', 'Squeeze the glute of the bent leg to feel it more.'],
+      mistake: 'Letting the knee drift forward and arching the lower back.',
+      dose: HOLD });
+  }
+
+  /* seated hamstring stretch */
+  {
+    const k = { hip: [0, 0.12, 0], pel: [44, 0, 0], sp: [22, 0, 0], nk: 12, foot: [0.11, 0.075, 0.86], toe: -10, knee: [0.1, 1, 0], hand: [0.12, 0.1, 0.62], elbow: [0.4, -1, 0] };
+    C({ id: 'seated-hamstring-stretch', name: 'Seated hamstring stretch', hold: true, primary: ['hamstrings'], secondary: ['lowerBack', 'calves'], cam: [82, 16],
+      keys: hold(k, { pel: [50, 0, 0], hand: [0.12, 0.1, 0.68] }), tl: BREATH, props: mat(0.35),
+      steps: ['Sit with both legs straight out in front and your toes pointing up.', 'Sit up tall, then hinge forward from your hips.', 'Reach toward your shins or toes and hold where you feel a good stretch.'],
+      cues: ['Lead with your chest, not your head.', 'Knees stay straight but not locked.'],
+      mistake: 'Rounding the upper back to reach further.',
+      dose: '30 to 45 seconds.' });
+  }
+
+  /* wall calf stretch */
+  {
+    const k = { hip: [0, 0.82, -0.04], pel: [10, 0, 0], nk: 0, foot: { L: [0.12, 0.075, 0.3], R: [0.12, 0.075, -0.42] }, knee: [0.12, 0, 1], toe: 0, plant: 1, kneeH: 1, hand: [0.2, 1.3, 0.5], elbow: [0.4, -1, -0.3] };
+    C({ id: 'wall-calf-stretch', name: 'Wall calf stretch', hold: true, equip: ['Wall'], primary: ['calves'], secondary: ['hamstrings'], cam: [74, 6],
+      keys: hold(k, { hip: [0, 0.81, 0.0] }), tl: BREATH, props: (o, p, P) => P.wall(0.56, { x0: -0.6, x1: 0.6, h: 1.9 }),
+      steps: ['Face a wall with your hands on it at shoulder height.', 'Step one foot back and keep that leg straight with the heel flat on the floor.', 'Bend the front knee and lean into the wall until you feel the calf stretch.'],
+      cues: ['Back heel stays down and the toes point straight at the wall.', 'Bend the back knee a little to stretch the lower calf too.'],
+      mistake: 'Letting the back heel lift or the foot turn out.',
+      dose: HOLD });
+  }
+
+  /* butterfly stretch */
+  {
+    const k = { hip: [0, 0.13, 0], pel: [4, 0, 0], nk: 0, foot: [0.05, 0.08, 0.38], toe: 0, knee: [1, 0.5, 0.2], hand: [0.07, 0.12, 0.43], elbow: [0.6, -1, 0] };
+    C({ id: 'butterfly-stretch', name: 'Butterfly stretch', hold: true, primary: ['adductors'], secondary: ['glutes', 'lowerBack'], cam: [24, 14],
+      keys: hold(k, { pel: [14, 0, 0], knee: [1, 0.3, 0.2] }), tl: BREATH, props: mat(0.1, { len: 1.1, w: 0.5 }),
+      steps: ['Sit tall and put the soles of your feet together in front of you.', 'Hold your feet and let your knees drop out to the sides.', 'Sit up tall and hinge forward a little if you want more.'],
+      cues: ['Use your elbows to press the knees down gently.', 'Bring the heels closer to you for a bigger stretch.'],
+      mistake: 'Slumping and rounding the back.',
+      dose: '30 to 45 seconds.' });
+  }
+
+  /* lying figure four */
+  {
+    const k = { hip: [0, 0.11, 0], pel: [-90, 0, 0], nk: 6, foot: { L: { w: [-0.12, 0.52, 0.3] }, R: [0.12, 0.5, 0.42] }, knee: { L: { w: [1, 0.4, 0.4] }, R: [0.1, 1, 0.3] }, toe: { L: 0, R: 10 },
+      hand: { L: { w: [-0.08, 0.36, 0.18] }, R: { w: [-0.16, 0.36, 0.16] } }, elbow: [1, 0, 0.2] };
+    C({ id: 'lying-figure-four-stretch', name: 'Lying figure four stretch', hold: true, primary: ['glutes'], secondary: ['lowerBack', 'hipFlexors'], cam: [76, 18],
+      keys: hold(k, { foot: { L: { w: [-0.12, 0.54, 0.26] }, R: [0.12, 0.52, 0.38] } }), tl: BREATH, props: mat(-0.2),
+      steps: ['Lie on your back with both knees bent.', 'Cross one ankle over the other knee.', 'Lift the bottom foot and pull that thigh toward your chest until you feel it in the glute of the crossed leg.'],
+      cues: ['Push the crossed knee gently away from you.', 'Head and shoulders stay relaxed on the floor.'],
+      mistake: 'Lifting the head and straining the neck to pull.',
+      dose: HOLD });
+  }
+
+  /* 90/90 hip switch */
+  {
+    const base = { hip: [0, 0.14, 0], pel: [-8, 0, 0], nk: 0, hand: { w: [0, 0, 0] }, toe: 0 };
+    const hands = { L: { w: [0.28, 0.03, -0.32] }, R: { w: [-0.28, 0.03, -0.32] } };
+    const mid = Object.assign({}, base, { hand: hands, elbow: [0.4, 0, -1], foot: [0.38, 0.075, 0.42], knee: { L: { w: [0.5, 1, 0.3] }, R: { w: [-0.5, 1, 0.3] } }, plant: 1 });
+    const side = Object.assign({}, base, { hand: hands, elbow: [0.4, 0, -1], pel: [-4, 0, 0],
+      foot: { L: { w: [-0.06, 0.08, 0.5] }, R: { w: [-0.6, 0.08, -0.12] } }, knee: { L: { w: [0.6, 0, 1] }, R: { w: [-1, 0.1, 0.3] } }, plant: 0 });
+    C({ id: 'ninety-ninety-hip-switch', name: '90/90 hip switch', primary: ['glutes', 'hipFlexors'], secondary: ['adductors'], cam: [24, 26],
+      keys: [mid, side, H.mirror(side)], tl: [[1, 1.0], [1, 0.6], [0, 0.9], [2, 1.0], [2, 0.6], [0, 0.9]], props: mat(0.1, { len: 1.3, w: 0.6 }),
+      steps: ['Sit with your feet wide and flat, knees bent, hands on the floor behind you.', 'Let both knees drop to one side so the front leg and back leg each make a 90 degree angle.', 'Lift the knees back through the middle and drop them to the other side.'],
+      cues: ['Sit tall and keep your chest facing forward.', 'Slow and controlled. Pause on each side.'],
+      mistake: 'Leaning far back on the hands and rushing the switch.',
+      dose: '8 to 10 switches each side.' });
+  }
+
+  /* supine spinal twist */
+  {
+    const k = { hip: [0, 0.11, 0], pel: [-90, 0, 0], sp: [0, 0, 18], nk: 0,
+      foot: { L: { w: [-0.4, 0.2, 0.5] }, R: { w: [-0.5, 0.08, 0.44] } }, knee: { L: { w: [-1, -0.2, 0.4] }, R: { w: [-1, -0.4, 0.4] } }, toe: 0,
+      hand: H.sh(0.6, 0.0, 0.02), elbow: [0, 1, 0] };
+    C({ id: 'supine-spinal-twist', name: 'Supine spinal twist', hold: true, primary: ['lowerBack', 'obliques'], secondary: ['glutes', 'chest'], cam: [8, 52],
+      keys: hold(k, { sp: [0, 0, 22] }), tl: BREATH, props: mat(-0.25, { w: 0.7 }),
+      steps: ['Lie on your back with your arms out wide in a T and your knees bent.', 'Let both knees fall over to one side.', 'Keep both shoulders on the floor, look the other way and breathe.'],
+      cues: ['Shoulders stay down. Let gravity pull the knees.', 'Put a cushion under the knees if they do not reach the floor.'],
+      mistake: 'Lifting the opposite shoulder off the floor.',
+      dose: HOLD });
+  }
+
+  /* thread the needle */
+  {
+    const base = { hip: [0, 0.5, -0.3], pel: [76, 0, 0], knee: [0.05, 0, 1], foot: [0.1, 0.08, -0.75], toe: 75, nk: -6 };
+    const up = H.with(base, { sp: [0, 0, 42], hand: { L: [0.2, 0.035, 0.18], R: { w: [-0.3, 1.05, 0.05] } }, elbow: { L: [0.2, 0, -1], R: { w: [-1, 0.4, 0] } } });
+    const thr = H.with(base, { hip: [0, 0.46, -0.28], sp: [16, 0, -40], nk: 10, hand: { L: [0.2, 0.035, 0.18], R: { w: [0.42, 0.04, 0.05] } }, elbow: { L: [0.2, 0, -1], R: { w: [0, 1, 0.3] } } });
+    C({ id: 'thread-the-needle', name: 'Thread the needle', primary: ['upperBack', 'obliques'], secondary: ['shoulders', 'lats'], cam: [-8, 18],
+      keys: [up, thr], tl: [[1, 1.3], [1, 0.9], [0, 1.3], [0, 0.5]], props: mat(-0.3, { len: 1.5, w: 0.5 }),
+      steps: ['Start on your hands and knees.', 'Open one arm up to the ceiling, rotating your chest with it.', 'Sweep that arm under your body and slide it along the floor until your shoulder rests down, then open back up.'],
+      cues: ['Hips stay over your knees. The turn comes from your upper back.', 'Follow your hand with your eyes.'],
+      mistake: 'Shifting the hips sideways instead of rotating the chest.',
+      dose: '6 to 8 each side, or hold the threaded position for 30 seconds.' });
+  }
+
+  /* open book */
+  {
+    const base = { hip: [0, 0.22, 0], pel: [0, 0, 88], nk: 0, foot: { L: { w: [0.42, 0.3, 0.4] }, R: { w: [0.42, 0.1, 0.42] } }, knee: { w: [0, 0, 1] }, toe: 0 };
+    const bot = { w: [-0.48, 0.06, 0.58] };
+    const k0 = H.with(base, { hand: { L: { w: [-0.48, 0.24, 0.58] }, R: bot }, elbow: { L: { w: [0, 1, 0] }, R: { w: [0, -1, 0] } } });
+    const k1 = H.with(base, { sp: [0, 0, -45], hand: { L: { w: [-0.5, 0.85, 0.05] }, R: bot }, elbow: { L: { w: [0, 1, 0] }, R: { w: [0, -1, 0] } } });
+    const k2 = H.with(base, { sp: [0, 0, -88], hand: { L: { w: [-0.5, 0.3, -0.5] }, R: bot }, elbow: { L: { w: [0, 1, 0] }, R: { w: [0, -1, 0] } } });
+    C({ id: 'open-book', name: 'Open book', primary: ['upperBack', 'chest'], secondary: ['obliques', 'shoulders'], cam: [-4, 46],
+      keys: [k0, k1, k2], tl: [[1, 0.9], [2, 0.9], [2, 0.8], [1, 0.9], [0, 0.9], [0, 0.4]], props: (o, p, P) => P.slab([0, 0.006, 0.05], [1.8, 0.012, 1.1], 'mat'),
+      steps: ['Lie on your side with your knees bent up in front of you and your arms straight out, palms together.', 'Lift the top arm up and over, rotating your chest open until the arm reaches the floor behind you.', 'Pause, then close the book back to the start.'],
+      cues: ['Knees stay stacked and pressed together. Only the upper body turns.', 'Follow your hand with your eyes and breathe out as you open.'],
+      mistake: 'Letting the knees come apart so the hips roll with the chest.',
+      dose: '6 to 8 each side.' });
+  }
+
+  /* wall chest stretch */
+  {
+    const k = H.with(S, { foot: { L: st, R: st }, knee: [0.12, 0, 1], plant: 1, kneeH: 1, pel: [0, -16, 0], sp: [0, 0, -8],
+      hand: { L: { w: [0.6, 1.72, 0.05] }, R: H.pel(0.17, 0.06, 0.03) }, elbow: { L: { w: [0.2, -1, -0.5] }, R: [1, 0, -0.4] } });
+    C({ id: 'wall-chest-stretch', name: 'Wall chest stretch', hold: true, equip: ['Wall'], primary: ['chest', 'frontDelts'], secondary: ['biceps'], cam: [-30, 8],
+      keys: hold(k, { pel: [0, -22, 0], sp: [0, 0, -10] }), tl: BREATH,
+      props: (o, p, P) => P.slab([0.66, 0.95, 0.05], [0.08, 1.9, 1.3], 'mat'),
+      steps: ['Stand side on to a wall and place your forearm on it, elbow at shoulder height.', 'Step forward with the inside foot.', 'Slowly turn your body away from the wall until you feel the stretch across your chest.'],
+      cues: ['Elbow level with the shoulder. Raise it a little to reach the lower chest.', 'Keep your shoulder down, away from your ear.'],
+      mistake: 'Turning too far so the front of the shoulder pinches.',
+      dose: HOLD });
+  }
+
+  /* cross body shoulder stretch */
+  {
+    const k = H.with(S, { foot: { L: st, R: st }, knee: [0.12, 0, 1], plant: 1, kneeH: 1,
+      hand: { L: H.ch(-0.42, 0.25, 0.14), R: H.ch(0.08, 0.2, 0.22) }, elbow: { L: [0, 0.3, -1], R: [0.4, -1, 0] } });
+    C({ id: 'cross-body-shoulder-stretch', name: 'Cross body shoulder stretch', hold: true, equip: ['Body only'], primary: ['rearDelts'], secondary: ['upperBack', 'triceps'], cam: [20, 8],
+      keys: hold(k, { hand: { L: H.ch(-0.44, 0.25, 0.1), R: H.ch(0.1, 0.2, 0.19) } }), tl: BREATH,
+      steps: ['Stand tall and bring one arm straight across your chest.', 'Hook the other forearm just above the elbow.', 'Gently pull the arm closer to your chest and hold.'],
+      cues: ['Keep the shoulder of the stretching arm down.', 'Pull above the elbow, never on the joint.'],
+      mistake: 'Twisting the body to follow the arm.',
+      dose: HOLD });
+  }
+})();
+
 /* ---------------- FOLLOW ALONG ROUTINES ---------------- */
 (function () {
   const L = EXERCISES;
@@ -4971,8 +5170,9 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
   const flow = (ids, sec, gap) => ({ type: 'flow', gap, steps: ids.map((id) => ({ id, name: name(id), sec })) });
   window.PETRO_ROUTINE = function (o) {
     const first = byId(o.ids[0]);
-    const full = Object.assign({ key: 'full', label: 'Full' }, flow(o.ids, o.sec, 5));
-    const quick = Object.assign({ key: 'quick', label: 'Quick' }, flow(o.quick, o.qsec, 5));
+    const u = o.kind === 'Cool down' ? { unit: 'Stretch' } : {};
+    const full = Object.assign({ key: 'full', label: 'Full' }, flow(o.ids, o.sec, 5), u);
+    const quick = Object.assign({ key: 'quick', label: 'Quick' }, flow(o.quick, o.qsec, 5), u);
     L.push({
       id: o.id, name: o.name, cat: 'Mobility', group: 'Follow along', kind: o.kind, equip: o.equip,
       primary: o.primary, secondary: o.secondary, cam: first.cam, keys: first.keys, tl: first.tl, rawTime: first.rawTime, props: first.props, hold: first.hold,
@@ -4993,6 +5193,18 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     dose: 'Before every gym session. Use Full before heavy lifting or sprints.',
   });
 })();
+PETRO_ROUTINE({
+  id: 'follow-along-cool-down', name: 'Follow along cool down', kind: 'Cool down', equip: ['Mat', 'Wall'],
+  primary: ['hamstrings', 'glutes', 'hipFlexors'], secondary: ['chest', 'upperBack', 'lowerBack', 'calves'],
+  ids: ['childs-pose', 'downward-dog', 'wall-calf-stretch', 'standing-quad-stretch', 'half-kneeling-hip-flexor-stretch', 'pigeon-stretch', 'ninety-ninety-hip-switch', 'butterfly-stretch', 'seated-hamstring-stretch', 'lying-figure-four-stretch', 'supine-spinal-twist', 'open-book', 'thread-the-needle', 'wall-chest-stretch', 'cross-body-shoulder-stretch'], sec: 30,
+  quick: ['childs-pose', 'downward-dog', 'half-kneeling-hip-flexor-stretch', 'pigeon-stretch', 'seated-hamstring-stretch', 'supine-spinal-twist', 'thread-the-needle', 'wall-chest-stretch'], qsec: 30,
+  note: 'The clip shows the stretch you are on. In the 5 second switch it shows the next one.',
+  tip: 'For one sided stretches, switch sides halfway through the time. Breathe out slowly and let each stretch get a little deeper.',
+  steps: ['Pick Full or Quick and tap Start.', 'Hold each stretch until the beep, then use the 5 second switch to get into the next one.', 'Breathe slowly through your nose the whole way through.'],
+  cues: ['Stretch to a mild pull, never to pain.', 'Tap any stretch in the list to see how to do it.'],
+  mistake: 'Bouncing in the stretches or holding your breath.',
+  dose: 'After every session. Use Full on rest days or after your hardest sessions.',
+});
 
 (function () {
   const EX = window.EXERCISES;
@@ -5013,7 +5225,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
       tab: 'Warm up and mobility', sec: 'warm up and mobility section', chips: 'Warm up or cool down', kinds: ['All', 'Warm up', 'Cool down'],
       groups: ['Follow along', 'Warm up', 'Cool down and mobility'],
       lede: 'Warm up drills to get you moving before you train, and stretches to cool down after. Open a follow along routine for a timer that takes you through each drill.',
-      count: (n) => n + ' warm up and mobility moves',
+      count: (n) => n + ' warm ups, stretches and follow along routines',
     },
     Cardio: {
       tab: 'Cardio', sec: 'cardio section', chips: 'Cardio type', kinds: ['All', 'Ski erg', 'Bike erg', 'Air bike', 'Rower', 'Treadmill', 'Run'],
@@ -5194,6 +5406,30 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     if (n >= 60) { const g = gap / n, k = cost / n; n = 0; cost = 0; gap = 0; if (g > 25 && (k > 4 || g > 40)) lower(); }
   }
 
+  /* ---------- warm up with / stretch after ---------- */
+  const UP = { arms: ['arm-circles', 'scap-push-up', 'inchworm'], spine: ['cat-cow', 'worlds-greatest-stretch', 'inchworm'], hips: ['hip-openers', 'walking-knee-hug', 'lateral-lunge'],
+    legs: ['leg-swings-front-to-back', 'walking-quad-pull', 'squat-to-stand'], hams: ['leg-swings-front-to-back', 'inchworm', 'walking-knee-hug'], fast: ['high-knees', 'butt-kicks', 'leg-swings-front-to-back'],
+    calves: ['jumping-jacks', 'high-knees', 'inchworm'], power: ['worlds-greatest-stretch', 'leg-swings-front-to-back', 'high-knees'], groin: ['leg-swings-side-to-side', 'lateral-lunge', 'hip-openers'], contact: ['worlds-greatest-stretch', 'hip-openers', 'arm-circles'] };
+  const DOWN = { chest: ['wall-chest-stretch', 'cross-body-shoulder-stretch', 'thread-the-needle'], back: ['childs-pose', 'downward-dog', 'thread-the-needle'], upper: ['open-book', 'thread-the-needle', 'cross-body-shoulder-stretch'],
+    arms: ['cross-body-shoulder-stretch', 'wall-chest-stretch', 'childs-pose'], trunk: ['supine-spinal-twist', 'childs-pose', 'open-book'], low: ['childs-pose', 'supine-spinal-twist', 'lying-figure-four-stretch'],
+    glutes: ['pigeon-stretch', 'lying-figure-four-stretch', 'ninety-ninety-hip-switch'], quads: ['half-kneeling-hip-flexor-stretch', 'standing-quad-stretch', 'pigeon-stretch'], hams: ['seated-hamstring-stretch', 'downward-dog', 'lying-figure-four-stretch'],
+    calves: ['wall-calf-stretch', 'downward-dog', 'seated-hamstring-stretch'], groin: ['butterfly-stretch', 'ninety-ninety-hip-switch', 'seated-hamstring-stretch'], full: ['half-kneeling-hip-flexor-stretch', 'pigeon-stretch', 'thread-the-needle'] };
+  const PAIR = { Chest: ['arms', 'chest'], Lats: [['arm-circles', 'cat-cow', 'scap-push-up'], 'back'], 'Upper back': [['arm-circles', 'scap-push-up', 'cat-cow'], 'upper'], Shoulders: ['arms', 'arms'],
+    Biceps: ['arms', 'arms'], Triceps: ['arms', 'arms'], Core: ['spine', 'trunk'], 'Lower back': [['cat-cow', 'hip-openers', 'inchworm'], 'low'], Glutes: ['hips', 'glutes'], Quads: ['legs', 'quads'],
+    Hamstrings: ['hams', 'hams'], Calves: ['calves', 'calves'], 'Rugby strength': ['legs', 'full'], 'Rugby power': ['power', 'full'], 'Rugby landmine': ['power', ['open-book', 'half-kneeling-hip-flexor-stretch', 'pigeon-stretch']],
+    'Rugby speed': ['fast', 'quads'], 'Rugby trunk': ['spine', 'trunk'], 'Rugby neck': [['arm-circles', 'cat-cow', 'scap-push-up'], ['cross-body-shoulder-stretch', 'childs-pose', 'thread-the-needle']],
+    'Tackle and carry': ['contact', ['pigeon-stretch', 'thread-the-needle', 'childs-pose']], 'Injury proofing': ['groin', 'groin'] };
+  const pick = (v, T) => (Array.isArray(v) ? v : T[v]).map((id) => bySlug[slug(id)]).filter(Boolean);
+  const goBtn = (e) => '<li><button type="button" data-go="' + e.slug + '"><span>' + e.name + '</span><span class="kind k-' + kc(e) + '">' + (e.session ? 'Timer' : e.kind) + '</span></button></li>';
+  function pairs(ex) {
+    const p = catOf(ex) !== 'Mobility' && PAIR[ex.group];
+    $('#d-pair-s').hidden = !p; if (!p) return;
+    const fw = bySlug.followalongwarmup, fc = bySlug.followalongcooldown;
+    $('#d-warm').innerHTML = pick(p[0], UP).concat(fw ? [fw] : []).map(goBtn).join('');
+    $('#d-cool').innerHTML = pick(p[1], DOWN).concat(fc ? [fc] : []).map(goBtn).join('');
+    for (const b of document.querySelectorAll('#d-warm [data-go], #d-cool [data-go]')) b.addEventListener('click', () => { openDetail(bySlug[b.dataset.go], true); $('#sheet .panel').scrollTop = 0; });
+  }
+
   /* ---------- detail sheet ---------- */
   function muscleRows(ex) {
     const rows = [];
@@ -5221,6 +5457,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     $('#d-wa').href = 'https://wa.me/27635028839?text=' + encodeURIComponent('Hi Josh, I have a question about the ' + moveName + '.');
     const more = EX.filter((e) => e.group === ex.group && catOf(e) === catOf(ex) && e !== ex);
     $('#d-wa').href = 'https://wa.me/27635028839?text=' + encodeURIComponent('Hi Josh, I have a question about the ' + moveName + (ex.session ? ' session.' : '.'));
+    pairs(ex);
     $('#d-more-h').textContent = ex.session ? 'More ' + ex.group + ' sessions' : 'More for ' + ex.group.toLowerCase();
     $('#d-more').innerHTML = more.map((e) => '<li><button type="button" data-go="' + e.slug + '"><span>' + e.name + '</span><span class="kind k-' + kc(e) + '">' + e.kind + '</span></button></li>').join('');
     for (const b of $('#d-more').querySelectorAll('[data-go]')) b.addEventListener('click', () => { openDetail(bySlug[b.dataset.go], true); $('#sheet .panel').scrollTop = 0; });
