@@ -429,7 +429,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     const cp = add(lp, mv(Ra, [0, B.abdo, 0]));
     const F = { hip, Rp, Ra, Rc, lp, cp, sh: {}, hj: {} };
     const SIDES = { L: 1, R: -1 };
-    for (const k in SIDES) { const s = SIDES[k]; F.sh[s] = add(cp, mv(Rc, [B.shW * s, B.shY, -0.01])); F.hj[s] = add(hip, mv(Rp, [B.hipW * s, -0.03, 0])); }
+    for (const k in SIDES) { const s = SIDES[k]; F.sh[s] = add(cp, mv(Rc, [B.shW * (1 + (P.scapW || 0)) * s, B.shY, -0.01 + (P.scap || 0)])); F.hj[s] = add(hip, mv(Rp, [B.hipW * s, -0.03, 0])); }
     const ax = (R) => [col(R, 0), col(R, 1), col(R, 2)];
     const P3 = ax(Rp), A3 = ax(Ra), C3 = ax(Rc), H3 = ax(Rh);
     const inF = (o, R, v) => add(o, mv(R, v));
@@ -907,7 +907,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     const lp = add(hip, mv(Rp, [0, B.lumbar, 0]));
     const cp = add(lp, mv(Ra, [0, B.abdo, 0]));
     const F = { hip, Rp, Ra, Rc, lp, cp, sh: {}, hj: {} };
-    for (const s of [1, -1]) { F.sh[s] = add(cp, mv(Rc, [B.shW * s, B.shY, -0.01])); F.hj[s] = add(hip, mv(Rp, [B.hipW * s, -0.03, 0])); }
+    for (const s of [1, -1]) { F.sh[s] = add(cp, mv(Rc, [B.shW * (1 + (P.scapW || 0)) * s, B.shY, -0.01 + (P.scap || 0)])); F.hj[s] = add(hip, mv(Rp, [B.hipW * s, -0.03, 0])); }
     return F;
   }
   const SIDE_FIELDS = ['hand', 'foot', 'elbow', 'knee', 'toe', 'plant', 'kneeH', 'footYaw'];
@@ -4757,16 +4757,20 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
   // straight leg hanging from the hip joint, swung a degrees forward (+) or back (-), b degrees out to the side
   const legAt = (a, b) => H.hp(0.02 + 0.8 * Math.sin((b || 0) * D), -0.8 * Math.cos(a * D) * Math.cos((b || 0) * D), 0.8 * Math.sin(a * D));
   const swingLeg = { plant: { L: 0, R: 1 }, kneeH: { L: 0, R: 1 }, knee: { L: [0.1, 0, 1], R: [0.12, 0, 1] } };
+  const shL = (k) => PetroFig.dbg.framesOf(k).sh[1];
+  const reach = (k, hand) => { const s = shL(k); return Math.hypot(s[0] - hand[0], s[1] - hand[1], s[2] - hand[2]); };
+  const bis = (f, lo, hi) => { let a = lo, b = hi; for (let i = 0; i < 44; i++) { const m = (a + b) / 2; if (f(a) * f(m) <= 0) b = m; else a = m; } return (a + b) / 2; };
+  const lockY = (k, hand, len) => { const y = bis((y) => reach(Object.assign({}, k, { hip: [k.hip[0], y, k.hip[2]] }), hand) - len, k.hip[1] - 0.25, k.hip[1] + 0.25); return Object.assign({}, k, { hip: [k.hip[0], y, k.hip[2]] }); };
+  const lockPel = (k, hand, len, lo, hi) => { const p = bis((p) => reach(Object.assign({}, k, { pel: [p, 0, 0] }), hand) - len, lo, hi); return Object.assign({}, k, { pel: [p, 0, 0] }); };
   const seq = (n, d, mode) => { const t = []; for (let i = 1; i < n; i++) t.push([i, d, mode]); for (let i = n - 2; i >= 0; i--) t.push([i, d, mode]); return t; };
 
   /* arm circles */
   {
-    const r = 0.13, pts = [];
-    for (let i = 0; i < 8; i++) { const a = i * 45 * D; pts.push(H.sh(0.6, r * Math.sin(a), r * Math.cos(a))); }
-    W({ id: 'arm-circles', name: 'Arm circles', primary: ['shoulders'], secondary: ['upperBack', 'traps'], cam: [14, 8],
-      keys: pts.map((p) => stand({ hand: p, elbow: [0.1, 0.4, -1] })).concat([stand({ hand: pts[0], elbow: [0.1, 0.4, -1] })]),
-      tl: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => [i, 0.16, 'lin']), rawTime: true,
-      steps: ['Stand tall and lift both arms straight out to the sides at shoulder height.', 'Draw small circles forward, then make them bigger.', 'After 10, switch and circle backward.'],
+    const ring = (r, dir) => { const out = []; for (let i = 0; i <= 8; i++) { const a = dir * i * 45 * D; out.push(stand({ hand: H.sh(Math.sqrt(0.36 - r * r), r * Math.sin(a), r * Math.cos(a)), elbow: [0.1, 0.4, -1] })); } return out; };
+    const keys = ring(0.1, 1).concat(ring(0.1, 1).slice(1), ring(0.22, -1).slice(1), ring(0.22, -1).slice(1));
+    W({ id: 'arm-circles', name: 'Arm circles', primary: ['shoulders'], secondary: ['upperBack', 'traps'], cam: [20, 10],
+      keys, tl: keys.slice(1).map((k, i) => [i + 1, i < 16 ? 0.11 : 0.17, 'lin']).concat([[0, 0.3]]), rawTime: true,
+      steps: ['Stand tall and lift both arms straight out to the sides at shoulder height.', 'Draw small circles forward.', 'After 10, switch and make bigger circles backward.'],
       cues: ['Arms stay straight and level with your shoulders.', 'Keep your shoulders down, away from your ears.'],
       mistake: 'Shrugging up and swinging the arms from the body.',
       dose: '10 forward and 10 backward.' });
@@ -4774,9 +4778,11 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 
   /* leg swings front to back */
   {
-    const angs = [45, 22, 0, -15, -28];
-    W({ id: 'leg-swings-front-to-back', name: 'Leg swings, front to back', primary: ['hamstrings', 'hipFlexors'], secondary: ['glutes', 'quads'], cam: [80, 6], equip: ['Wall or post'],
-      keys: angs.map((a) => stand(Object.assign({ foot: { L: legAt(a), R: st }, toe: { L: a > 0 ? -10 : 15, R: 0 }, pel: [a < 0 ? 6 : -3, 0, 0] }, swingLeg, HIPS))),
+    const angs = [72, 40, 0, -24, -42];
+    const wallHand = { hand: { L: H.pel(0.17, 0.06, 0.03), R: { w: [-0.5, 1.2, 0.04] } }, elbow: { L: [1, 0, -0.4], R: { w: [0, -1, -0.6] } } };
+    W({ id: 'leg-swings-front-to-back', name: 'Leg swings, front to back', primary: ['hamstrings', 'hipFlexors'], secondary: ['glutes', 'quads'], cam: [-78, 6], equip: ['Wall or post'],
+      keys: angs.map((a) => stand(Object.assign({ foot: { L: legAt(a), R: st }, toe: { L: a > 0 ? -10 : 20, R: 0 }, pel: [a < 0 ? 10 : -6, 0, 0] }, swingLeg, wallHand))),
+      props: (o, p, P) => P.slab([-0.64, 0.95, 0.02], [0.08, 1.9, 1.3], 'mat'),
       tl: seq(5, 0.2, 'lin'), rawTime: true,
       steps: ['Stand side on to a wall with one hand on it for balance.', 'Swing your outside leg forward and back like a pendulum.', 'Let the swing get a little higher each time, then switch legs.'],
       cues: ['Stand tall on the standing leg. The swinging leg stays almost straight.', 'Smooth and relaxed. Let the leg go, do not kick it.'],
@@ -4786,9 +4792,11 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 
   /* leg swings side to side */
   {
-    const bs = [-28, -10, 8, 24, 38];
-    W({ id: 'leg-swings-side-to-side', name: 'Leg swings, side to side', primary: ['adductors', 'glutes'], secondary: ['hipFlexors'], cam: [6, 6], equip: ['Wall or post'],
-      keys: bs.map((b) => stand(Object.assign({ foot: { L: legAt(12, b), R: st }, toe: { L: 10, R: 0 }, pel: [0, 0, b > 0 ? -4 : 2] }, swingLeg, HIPS))),
+    const bs = [-42, -18, 8, 32, 54];
+    const wallHands = { hand: { L: { w: [0.22, 1.25, 0.46] }, R: { w: [-0.22, 1.25, 0.46] } }, elbow: [0.4, -1, -0.3] };
+    W({ id: 'leg-swings-side-to-side', name: 'Leg swings, side to side', primary: ['adductors', 'glutes'], secondary: ['hipFlexors'], cam: [196, 12], equip: ['Wall or post'],
+      keys: bs.map((b) => stand(Object.assign({ hip: [0, 0.93, -0.03], foot: { L: legAt(14, b), R: st }, toe: { L: 10, R: 0 }, pel: [6, 0, b > 0 ? -5 : 3] }, swingLeg, wallHands))),
+      props: (o, p, P) => P.wall(0.52, { x0: -0.7, x1: 0.7, h: 1.9 }),
       tl: seq(5, 0.2, 'lin'), rawTime: true,
       steps: ['Face a wall and rest both hands on it at chest height.', 'Swing one leg across in front of your body, then out to the side.', 'Keep it going side to side, then switch legs.'],
       cues: ['Hips face the wall. Only the leg moves.', 'Stand tall on the other leg with a soft knee.'],
@@ -4881,11 +4889,12 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 
   /* inchworm */
   {
-    const fl = [0.12, 0.075, 0.03], pl = H.plank(0.14, 0.02, 20);
-    const k0 = stand();
-    const k1 = { hip: [0, 0.86, -0.13], pel: [124, 0, 0], nk: 26, foot: fl, toe: 0, plant: 1, kneeH: 1, knee: [0.12, 0, 1], hand: [0.15, 0.03, 0.3], elbow: [0.3, 0, -1] };
-    const k2 = { hip: [0, 0.84, 0.1], pel: [105, 0, 0], nk: 12, foot: [0.12, 0.1, 0.02], toe: 20, plant: 0, knee: [0.12, 0, 1], hand: [0.17, 0.03, 0.78], elbow: [0.3, 0, -1] };
-    const k3 = { hip: pl.hip, pel: pl.pel, nk: -12, foot: [0.1, 0.14, 0.02], toe: 0, plant: 0, knee: [0.1, 0, 1], hand: [0.22, 0.03, 1.23], elbow: [0.5, -0.6, -1] };
+    const at = (th, toe, hz, nk) => {
+      const a = H.ballFoot(0.12, 0, 0.17, toe), hand = [0.17, 0.03, hz];
+      const k = { hip: [0, a[1] + 0.86 * Math.sin(th * D), a[2] + 0.86 * Math.cos(th * D)], pel: [90, 0, 0], nk, foot: a, toe, plant: 1, kneeH: 1, knee: [0.12, 0, 1], hand, elbow: [0.3, 0, -1] };
+      return lockPel(k, hand, 0.6, 60, 178);
+    };
+    const k0 = stand(), k1 = at(97, 0, 0.34, 26), k2 = at(66, 22, 0.78, 14), k3 = at(20, 58, 1.2, -12);
     W({ id: 'inchworm', name: 'Inchworm', primary: ['hamstrings', 'shoulders'], secondary: ['abs', 'chest', 'calves'], cam: [70, 8],
       keys: [k0, k1, k2, k3], tl: [[1, 0.9], [2, 0.7], [3, 0.7], [3, 0.5], [2, 0.7], [1, 0.7], [0, 0.9], [0, 0.4]],
       steps: ['Stand tall, then hinge forward and put your hands on the floor in front of your feet.', 'Walk your hands out until you are in a high plank.', 'Walk your hands back to your feet and stand up.'],
@@ -4942,11 +4951,11 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
   {
     const base = { hip: [0, 0.5, -0.3], pel: [76, 0, 0], knee: [0.05, 0, 1], foot: [0.1, 0.08, -0.75], toe: 75, hand: [0.2, 0.035, 0.18], elbow: [0.2, 0, -1] };
     W({ id: 'cat-cow', name: 'Cat cow', primary: ['lowerBack', 'abs'], secondary: ['upperBack'], cam: [80, 10], equip: ['Mat'],
-      keys: [H.with(base, { pel: [70, 0, 0], sp: [26, 0, 0], nk: 30 }), H.with(base, { pel: [84, 0, 0], sp: [-20, 0, 0], nk: -40 })],
+      keys: [lockY(H.with(base, { pel: [70, 0, 0], sp: [26, 0, 0], nk: 30, scap: 0.02 }), [0.2, 0.035, 0.18], 0.612), lockY(H.with(base, { pel: [84, 0, 0], sp: [-20, 0, 0], nk: -40, scap: -0.02 }), [0.2, 0.035, 0.18], 0.612)],
       tl: [[1, 1.3, 'sine'], [1, 0.3], [0, 1.3, 'sine'], [0, 0.3]], rawTime: true,
       props: (o, p, P) => P.mat(-0.3, { len: 1.5 }),
       steps: ['Start on your hands and knees with your hands under your shoulders and knees under your hips.', 'Breathe out and round your back up to the ceiling, tucking your chin.', 'Breathe in and let your stomach drop as you lift your chest and look forward.'],
-      cues: ['Move one bone at a time, starting from your tailbone.', 'Slow and in time with your breathing.'],
+      cues: ['Arms stay locked straight. The movement comes from your spine.', 'Move one bone at a time, starting from your tailbone, slow and in time with your breathing.'],
       mistake: 'Only moving the neck and shoulders while the lower back stays still.',
       dose: '8 to 10 slow reps.' });
   }
@@ -4954,10 +4963,10 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
   /* scap push up */
   {
     const pl = H.plank(0.15, -1.2, 21);
-    const base = { hip: pl.hip, pel: pl.pel, nk: -12, foot: [0.1, 0.15, -1.2], knee: [0.1, 0, 1], hand: [0.2, 0.03, 0.02], elbow: [0.55, -0.7, -1] };
-    W({ id: 'scap-push-up', name: 'Scap push up', primary: ['upperBack', 'shoulders'], secondary: ['chest', 'abs'], cam: [40, 18],
-      keys: [H.with(base, { sp: [-6, 0, 0] }), H.with(base, { hip: [pl.hip[0], pl.hip[1] - 0.035, pl.hip[2]], sp: [8, 0, 0] })],
-      tl: [[1, 0.8], [1, 0.3], [0, 0.8], [0, 0.3]],
+    const base = { hip: pl.hip, pel: pl.pel, nk: -12, foot: [0.1, 0.15, -1.2], knee: [0.1, 0, 1], hand: [0.2, 0.03, 0.02], elbow: [0.3, 0.2, -1] };
+    W({ id: 'scap-push-up', name: 'Scap push up', primary: ['rhomboids', 'upperBack'], secondary: ['chest', 'shoulders', 'abs'], cam: [70, 10],
+      keys: [lockY(H.with(base, { sp: [5, 0, 0], scap: 0.03, scapW: 0.08 }), [0.2, 0.03, 0.02], 0.614), lockY(H.with(base, { sp: [-5, 0, 0], scap: -0.04, scapW: -0.1 }), [0.2, 0.03, 0.02], 0.614)],
+      tl: [[1, 0.9], [1, 0.4], [0, 0.9], [0, 0.4]],
       steps: ['Start in a high plank with your arms straight and hands under your shoulders.', 'Keep your arms locked and let your chest sink between your shoulder blades.', 'Push the floor away to spread your shoulder blades and round your upper back a little.'],
       cues: ['Arms never bend. The movement is small and comes from the shoulder blades.', 'Hips and legs stay still like a plank.'],
       mistake: 'Bending the elbows so it turns into a push up.',
@@ -5000,11 +5009,11 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 
   /* pigeon stretch */
   {
-    const k = { hip: [0, 0.3, 0.02], pel: [24, 0, 0], sp: [10, 0, 0], nk: -4,
+    const k = { hip: [0, 0.3, 0.02], pel: [46, 0, 0], sp: [16, 0, 0], nk: 4,
       foot: { L: { w: [-0.16, 0.08, 0.2] }, R: [0.12, 0.08, -0.82] }, knee: { L: [1, -0.4, 0.5], R: [0.1, -1, 0.2] }, toe: { L: 0, R: 80 }, plant: 0,
-      hand: [0.24, 0.03, 0.3], elbow: [0.4, 0, -1] };
+      hand: [0.22, 0.03, 0.52], elbow: [0.4, 0.4, -1] };
     C({ id: 'pigeon-stretch', name: 'Pigeon stretch', hold: true, primary: ['glutes'], secondary: ['hipFlexors', 'lowerBack'], cam: [24, 18],
-      keys: hold(k, { pel: [32, 0, 0], sp: [14, 0, 0] }), tl: BREATH, props: mat(-0.25),
+      keys: hold(k, { pel: [52, 0, 0], sp: [20, 0, 0], hand: [0.22, 0.03, 0.56] }), tl: BREATH, props: mat(-0.25),
       steps: ['From your hands and knees, bring one knee forward behind your wrist and lay that shin across in front of you.', 'Slide the other leg straight back with the top of the foot on the floor.', 'Square your hips, then walk your hands forward and fold over the front leg.'],
       cues: ['Keep your hips level. Put a cushion under the front hip if it floats.', 'Breathe out and sink a little lower each time.'],
       mistake: 'Leaning onto one hip so the stretch disappears.',
@@ -5070,10 +5079,13 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 
   /* lying figure four */
   {
-    const k = { hip: [0, 0.11, 0], pel: [-90, 0, 0], nk: 6, foot: { L: { w: [-0.12, 0.52, 0.3] }, R: [0.12, 0.5, 0.42] }, knee: { L: { w: [1, 0.4, 0.4] }, R: [0.1, 1, 0.3] }, toe: { L: 0, R: 10 },
-      hand: { L: { w: [-0.08, 0.36, 0.18] }, R: { w: [-0.16, 0.36, 0.16] } }, elbow: [1, 0, 0.2] };
-    C({ id: 'lying-figure-four-stretch', name: 'Lying figure four stretch', hold: true, primary: ['glutes'], secondary: ['lowerBack', 'hipFlexors'], cam: [76, 18],
-      keys: hold(k, { foot: { L: { w: [-0.12, 0.54, 0.26] }, R: [0.12, 0.52, 0.38] } }), tl: BREATH, props: mat(-0.2),
+    const k = { hip: [0, 0.11, 0], pel: [-90, 0, 0], nk: 8,
+      foot: { L: { w: [-0.05, 0.47, 0.21] }, R: [0.09, 0.5, 0.56] }, knee: { L: { w: [1, 0.25, 0.25] }, R: { w: [0, 1, -0.25] } }, toe: { L: 0, R: 15 }, plant: 0,
+      hand: { L: { w: [-0.02, 0.37, 0.05] }, R: { w: [-0.17, 0.37, 0.05] } }, elbow: { L: { w: [0.6, 0.2, -1] }, R: { w: [-0.6, 0.2, -1] } } };
+    const down = Object.assign({}, k, { foot: { L: { w: [-0.06, 0.43, 0.31] }, R: [0.13, 0.075, 0.44] }, knee: { L: { w: [1, 0.25, 0.25] }, R: { w: [0, 1, 0.1] } }, toe: { L: 0, R: 0 },
+      hand: { L: { w: [-0.03, 0.29, 0.15] }, R: { w: [-0.18, 0.29, 0.15] } } });
+    C({ id: 'lying-figure-four-stretch', name: 'Lying figure four stretch', primary: ['glutes'], secondary: ['lowerBack', 'hipFlexors'], cam: [25, 50],
+      keys: [down, k, H.with(k, { foot: { L: { w: [-0.05, 0.5, 0.15] }, R: [0.09, 0.54, 0.48] } })], tl: [[1, 1.2], [2, 1.0, 'sine'], [1, 1.0, 'sine'], [0, 1.2], [0, 0.6]], rawTime: true, props: mat(-0.2),
       steps: ['Lie on your back with both knees bent.', 'Cross one ankle over the other knee.', 'Lift the bottom foot and pull that thigh toward your chest until you feel it in the glute of the crossed leg.'],
       cues: ['Push the crossed knee gently away from you.', 'Head and shoulders stay relaxed on the floor.'],
       mistake: 'Lifting the head and straining the neck to pull.',
@@ -5112,8 +5124,8 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
   {
     const base = { hip: [0, 0.5, -0.3], pel: [76, 0, 0], knee: [0.05, 0, 1], foot: [0.1, 0.08, -0.75], toe: 75, nk: -6 };
     const up = H.with(base, { sp: [0, 0, 42], hand: { L: [0.2, 0.035, 0.18], R: { w: [-0.3, 1.05, 0.05] } }, elbow: { L: [0.2, 0, -1], R: { w: [-1, 0.4, 0] } } });
-    const thr = H.with(base, { hip: [0, 0.46, -0.28], sp: [16, 0, -40], nk: 10, hand: { L: [0.2, 0.035, 0.18], R: { w: [0.42, 0.04, 0.05] } }, elbow: { L: [0.2, 0, -1], R: { w: [0, 1, 0.3] } } });
-    C({ id: 'thread-the-needle', name: 'Thread the needle', primary: ['upperBack', 'obliques'], secondary: ['shoulders', 'lats'], cam: [-8, 18],
+    const thr = H.with(base, { sp: [18, 0, -52], nk: 12, hand: { L: [0.2, 0.035, 0.18], R: { w: [0.55, 0.05, 0.08] } }, elbow: { L: [0.9, 0, -0.4], R: { w: [0, 1, 0.3] } } });
+    C({ id: 'thread-the-needle', name: 'Thread the needle', primary: ['upperBack', 'obliques'], secondary: ['shoulders', 'lats'], cam: [35, 22],
       keys: [up, thr], tl: [[1, 1.3], [1, 0.9], [0, 1.3], [0, 0.5]], props: mat(-0.3, { len: 1.5, w: 0.5 }),
       steps: ['Start on your hands and knees.', 'Open one arm up to the ceiling, rotating your chest with it.', 'Sweep that arm under your body and slide it along the floor until your shoulder rests down, then open back up.'],
       cues: ['Hips stay over your knees. The turn comes from your upper back.', 'Follow your hand with your eyes.'],
@@ -5128,7 +5140,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     const k0 = H.with(base, { hand: { L: { w: [-0.48, 0.24, 0.58] }, R: bot }, elbow: { L: { w: [0, 1, 0] }, R: { w: [0, -1, 0] } } });
     const k1 = H.with(base, { sp: [0, 0, -45], hand: { L: { w: [-0.5, 0.85, 0.05] }, R: bot }, elbow: { L: { w: [0, 1, 0] }, R: { w: [0, -1, 0] } } });
     const k2 = H.with(base, { sp: [0, 0, -88], hand: { L: { w: [-0.5, 0.3, -0.5] }, R: bot }, elbow: { L: { w: [0, 1, 0] }, R: { w: [0, -1, 0] } } });
-    C({ id: 'open-book', name: 'Open book', primary: ['upperBack', 'chest'], secondary: ['obliques', 'shoulders'], cam: [-4, 46],
+    C({ id: 'open-book', name: 'Open book', primary: ['upperBack', 'chest'], secondary: ['obliques', 'shoulders'], cam: [0, 72],
       keys: [k0, k1, k2], tl: [[1, 0.9], [2, 0.9], [2, 0.8], [1, 0.9], [0, 0.9], [0, 0.4]], props: (o, p, P) => P.slab([0, 0.006, 0.05], [1.8, 0.012, 1.1], 'mat'),
       steps: ['Lie on your side with your knees bent up in front of you and your arms straight out, palms together.', 'Lift the top arm up and over, rotating your chest open until the arm reaches the floor behind you.', 'Pause, then close the book back to the start.'],
       cues: ['Knees stay stacked and pressed together. Only the upper body turns.', 'Follow your hand with your eyes and breathe out as you open.'],
@@ -5138,8 +5150,8 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 
   /* wall chest stretch */
   {
-    const k = H.with(S, { foot: { L: st, R: st }, knee: [0.12, 0, 1], plant: 1, kneeH: 1, pel: [0, -16, 0], sp: [0, 0, -8],
-      hand: { L: { w: [0.6, 1.72, 0.05] }, R: H.pel(0.17, 0.06, 0.03) }, elbow: { L: { w: [0.2, -1, -0.5] }, R: [1, 0, -0.4] } });
+    const k = H.with(S, { hip: [0, 0.92, 0.12], foot: { L: [0.12, 0.075, 0.38], R: st }, knee: [0.12, 0, 1], plant: 1, kneeH: 1, pel: [0, -16, 0], sp: [0, 0, -8],
+      hand: { L: { w: [0.6, 1.72, 0.12] }, R: H.pel(0.17, 0.06, 0.03) }, elbow: { L: { w: [0.2, -1, -0.5] }, R: [1, 0, -0.4] } });
     C({ id: 'wall-chest-stretch', name: 'Wall chest stretch', hold: true, equip: ['Wall'], primary: ['chest', 'frontDelts'], secondary: ['biceps'], cam: [-30, 8],
       keys: hold(k, { pel: [0, -22, 0], sp: [0, 0, -10] }), tl: BREATH,
       props: (o, p, P) => P.slab([0.66, 0.95, 0.05], [0.08, 1.9, 1.3], 'mat'),
