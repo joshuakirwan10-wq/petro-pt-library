@@ -162,7 +162,9 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 .opts button { border: 1px solid var(--line); background: var(--surface); min-height: 44px; padding: 0 16px; border-radius: 10px; font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: 0.04em; cursor: pointer; }
 .opts button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .ss-sum { margin: 10px 0 0; }
-.ss-list { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 4px; font-weight: 600; }
+@media (max-width: 819px) { .panel.flow .pclip { position: sticky; top: 61px; z-index: 1; background: var(--surface); padding-bottom: 8px; border-bottom: 1px solid var(--line); } .panel.flow .pclip .stage { width: min(100%, 34vh); margin: 0 auto; } .panel.flow .ctl { display: none; } }
+.ss-list { margin: 6px 0 0; padding-left: 24px; display: grid; gap: 4px; font-weight: 600; }
+.ss-list a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
 .tbox { margin-top: 12px; border-radius: 16px; padding: 18px 16px 16px; background: var(--chip); display: grid; gap: 6px; text-align: center; }
 .tbox[data-kind="work"] { background: var(--accent); color: var(--accent-ink); }
 .tbox[data-kind="rest"] { background: var(--b); color: var(--b-ink); }
@@ -263,7 +265,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
           <p class="lbl">Session</p>
           <div class="opts" id="ss-opts" role="group" aria-label="Session options"></div>
           <p class="plain ss-sum" id="ss-sum"></p>
-          <ul class="ss-list" id="ss-list" hidden></ul>
+          <ol class="ss-list" id="ss-list" hidden></ol>
           <p class="plain" id="ss-setup" hidden></p>
           <div id="ss-z2" hidden><p class="z2line">Your zone 2: <strong data-z2></strong></p><details class="z2how"><summary>Set or change your heart rate range</summary><div class="z2calc" id="ss-z2calc"></div></details></div>
           <div class="tbox" id="ss-box" data-kind="ready">
@@ -4456,10 +4458,15 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     if (o.type === 'emom') for (let m = 1; m <= o.minutes; m++) P.push({ name: 'Go', sec: 60, kind: 'work', sub: 'Minute ' + m + ' of ' + o.minutes });
     if (o.type === 'amrap') P.push({ name: 'AMRAP', sec: o.minutes * 60, kind: 'work', sub: 'Time left' });
     if (o.type === 'zone2') P.push({ name: 'Zone 2', sec: o.minutes * 60, kind: 'work', sub: 'Stay in your range' });
+    if (o.type === 'flow') o.steps.forEach((d, i) => {
+      if (i) P.push({ name: 'Switch', sec: o.gap, kind: 'rest', sub: 'Next: ' + d.name, id: d.id });
+      P.push({ name: d.name, sec: d.sec, kind: 'work', sub: 'Drill ' + (i + 1) + ' of ' + o.steps.length, id: d.id });
+    });
     return P;
   }
   function summary(o) {
     if (o.type === 'interval') { const t = o.rounds * o.work + (o.rounds - 1) * o.rest; const u = (x) => x >= 60 ? (x / 60) + (x === 60 ? ' minute' : ' minutes') : x + ' seconds'; return o.rounds + ' rounds of ' + u(o.work) + ' ' + (o.workName ? o.workName.toLowerCase() : 'hard') + ', ' + u(o.rest) + ' ' + (o.restName ? o.restName.toLowerCase() : 'rest') + '. ' + fmt(t) + ' in total.'; }
+    if (o.type === 'flow') { const t = o.steps.reduce((a, d) => a + d.sec, 0) + (o.steps.length - 1) * o.gap; return o.steps.length + ' drills, ' + o.steps[0].sec + ' seconds each with a ' + o.gap + ' second switch. ' + fmt(t) + ' in total.'; }
     if (o.type === 'stopwatch') return 'One steady run. The clock counts up until you tap Finish.';
     if (o.type === 'runwalk') return 'Run ' + (o.run / 60) + ' minutes, walk ' + o.walk + ' seconds, and repeat until you reach the distance. Tap Finish at the end.';
     if (o.type === 'emom') return 'Every minute on the minute for ' + o.minutes + ' minutes. ' + o.task;
@@ -4523,6 +4530,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
         if (!S.done) { S.done = true; beep(880, 0.25); setTimeout(() => beep(880, 0.25), 300); setTimeout(() => beep(1175, 0.6), 600); buzz([300, 120, 300, 120, 500]); if (S.o.type !== 'zone2') stop(true); }
       } else if (S.idx >= 0) { const k = S.P[a.i].kind; beep(k === 'work' ? 1175 : 660, 0.5, 0.35); buzz(k === 'work' ? [400] : [150, 80, 150]); }
       S.idx = a.i; S.cued = -1;
+      if (S.o.type === 'flow') drill(a.i < S.P.length && S.P[a.i].id ? S.P[a.i].id : S.o.steps[0].id);
     }
     if (open_() && a.i > 0 && S.o.type === 'runwalk') { const c = Math.ceil(a.left); if (c <= 3 && c >= 1 && c !== S.cued) { S.cued = c; beep(880, 0.12, 0.25); } }
     if (open_() && a.i === 0) { const c = Math.ceil(a.left); if (c <= 3 && c >= 1 && c !== S.cued) { S.cued = c; beep(880, 0.12, 0.25); } }
@@ -4535,7 +4543,8 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     clearInterval(S.iv); S.iv = setInterval(step, 100); paint();
   }
   function stop(keep) { S.run = false; clearInterval(S.iv); S.iv = null; wake(false); if (keep !== true && S.P) paint(); }
-  function reset() { stop(true); S.el = 0; S.idx = -1; S.cued = -1; S.rounds = 0; S.done = false; paint(); }
+  function drill(id) { document.dispatchEvent(new CustomEvent('petro-drill', { detail: id })); }
+  function reset() { if (S.o && S.o.type === 'flow') drill(S.o.steps[0].id); stop(true); S.el = 0; S.idx = -1; S.cued = -1; S.rounds = 0; S.done = false; paint(); }
 
   /* ---------- run log ---------- */
   const RKEY = 'petro-runs';
@@ -4578,8 +4587,9 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     S.o = o; S.P = plan(o); reset();
     for (const b of ui.opts.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.key === o.key));
     ui.sum.textContent = summary(o);
-    ui.list.innerHTML = o.type === 'amrap' ? o.round.map((r) => '<li>' + r + '</li>').join('') : '';
-    ui.list.hidden = o.type !== 'amrap';
+    ui.list.innerHTML = o.type === 'amrap' ? o.round.map((r) => '<li>' + r + '</li>').join('') : o.type === 'flow' ? o.steps.map((d) => '<li><a href="#' + d.id.replace(/[^a-z0-9]/g, '') + '">' + d.name + '</a></li>').join('') : '';
+    ui.list.hidden = o.type !== 'amrap' && o.type !== 'flow';
+    if (o.type === 'flow') { ui.box.after(ui.list); drill(o.steps[0].id); } else ui.setup.before(ui.list);
     ui.z2.hidden = o.type !== 'zone2';
     ui.box.dataset.open = open_() ? '1' : '';
     if (push) { try { history.replaceState(null, '', '#' + S.ex.slug + '-' + o.key); } catch (e) {} }
@@ -4596,7 +4606,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     ui.setup.hidden = !ex.session.setup;
     ui.note.textContent = ex.session.note || '';
     ui.note.hidden = !ex.session.note;
-    const prop = $('#ss-prop'); if (prop) prop.textContent = ex.kind === 'Run' ? 'Keep your phone on you. It beeps and buzzes at every change and keeps the screen awake.' : 'Prop your phone up on the machine. It beeps and buzzes at every change and keeps the screen awake.';
+    const prop = $('#ss-prop'); if (prop) prop.textContent = ex.cat === 'Mobility' ? 'Prop your phone up where you can see it. It beeps and buzzes at every change and keeps the screen awake.' : ex.kind === 'Run' ? 'Keep your phone on you. It beeps and buzzes at every change and keeps the screen awake.' : 'Prop your phone up on the machine. It beeps and buzzes at every change and keeps the screen awake.';
     ui.tip.hidden = !ex.session.tip; ui.tipText.textContent = ex.session.tip || '';
     ui.log.hidden = !ex.session.log; ui.logErr.hidden = true;
     if (ex.session.log) { ui.logH.textContent = 'Log your ' + ex.session.log.km + ' km time'; logPaint(); }
@@ -4734,6 +4744,256 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
 })();
 
 
+/* ---------------- WARM UP ---------------- */
+(function () {
+  const H = PH, S = H.STAND, L = EXERCISES;
+  const D = Math.PI / 180;
+  const W = (o) => L.push(Object.assign({ cat: 'Mobility', group: 'Warm up', kind: 'Warm up', equip: ['Body only'] }, o));
+  const st = [0.12, 0.075, 0.03];
+  const HIPS = { hand: H.pel(0.17, 0.06, 0.03), elbow: [1, 0, -0.4] }; // hands on hips
+  const stand = (o) => H.with(S, Object.assign({ foot: { L: st, R: st }, knee: [0.12, 0, 1], plant: 1, kneeH: 1 }, o || {}));
+  // straight leg hanging from the hip joint, swung a degrees forward (+) or back (-), b degrees out to the side
+  const legAt = (a, b) => H.hp(0.02 + 0.8 * Math.sin((b || 0) * D), -0.8 * Math.cos(a * D) * Math.cos((b || 0) * D), 0.8 * Math.sin(a * D));
+  const swingLeg = { plant: { L: 0, R: 1 }, kneeH: { L: 0, R: 1 }, knee: { L: [0.1, 0, 1], R: [0.12, 0, 1] } };
+  const seq = (n, d, mode) => { const t = []; for (let i = 1; i < n; i++) t.push([i, d, mode]); for (let i = n - 2; i >= 0; i--) t.push([i, d, mode]); return t; };
+
+  /* arm circles */
+  {
+    const r = 0.13, pts = [];
+    for (let i = 0; i < 8; i++) { const a = i * 45 * D; pts.push(H.sh(0.6, r * Math.sin(a), r * Math.cos(a))); }
+    W({ id: 'arm-circles', name: 'Arm circles', primary: ['shoulders'], secondary: ['upperBack', 'traps'], cam: [14, 8],
+      keys: pts.map((p) => stand({ hand: p, elbow: [0.1, 0.4, -1] })).concat([stand({ hand: pts[0], elbow: [0.1, 0.4, -1] })]),
+      tl: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => [i, 0.16, 'lin']), rawTime: true,
+      steps: ['Stand tall and lift both arms straight out to the sides at shoulder height.', 'Draw small circles forward, then make them bigger.', 'After 10, switch and circle backward.'],
+      cues: ['Arms stay straight and level with your shoulders.', 'Keep your shoulders down, away from your ears.'],
+      mistake: 'Shrugging up and swinging the arms from the body.',
+      dose: '10 forward and 10 backward.' });
+  }
+
+  /* leg swings front to back */
+  {
+    const angs = [45, 22, 0, -15, -28];
+    W({ id: 'leg-swings-front-to-back', name: 'Leg swings, front to back', primary: ['hamstrings', 'hipFlexors'], secondary: ['glutes', 'quads'], cam: [80, 6], equip: ['Wall or post'],
+      keys: angs.map((a) => stand(Object.assign({ foot: { L: legAt(a), R: st }, toe: { L: a > 0 ? -10 : 15, R: 0 }, pel: [a < 0 ? 6 : -3, 0, 0] }, swingLeg, HIPS))),
+      tl: seq(5, 0.2, 'lin'), rawTime: true,
+      steps: ['Stand side on to a wall with one hand on it for balance.', 'Swing your outside leg forward and back like a pendulum.', 'Let the swing get a little higher each time, then switch legs.'],
+      cues: ['Stand tall on the standing leg. The swinging leg stays almost straight.', 'Smooth and relaxed. Let the leg go, do not kick it.'],
+      mistake: 'Rounding the back and leaning to get the leg higher.',
+      dose: '10 to 12 swings each leg.' });
+  }
+
+  /* leg swings side to side */
+  {
+    const bs = [-28, -10, 8, 24, 38];
+    W({ id: 'leg-swings-side-to-side', name: 'Leg swings, side to side', primary: ['adductors', 'glutes'], secondary: ['hipFlexors'], cam: [6, 6], equip: ['Wall or post'],
+      keys: bs.map((b) => stand(Object.assign({ foot: { L: legAt(12, b), R: st }, toe: { L: 10, R: 0 }, pel: [0, 0, b > 0 ? -4 : 2] }, swingLeg, HIPS))),
+      tl: seq(5, 0.2, 'lin'), rawTime: true,
+      steps: ['Face a wall and rest both hands on it at chest height.', 'Swing one leg across in front of your body, then out to the side.', 'Keep it going side to side, then switch legs.'],
+      cues: ['Hips face the wall. Only the leg moves.', 'Stand tall on the other leg with a soft knee.'],
+      mistake: 'Twisting the whole body to make the swing bigger.',
+      dose: '10 to 12 swings each leg.' });
+  }
+
+  /* hip openers (open the gate) */
+  {
+    const up = stand(Object.assign({ foot: { L: H.hp(0.03, -0.4, 0.3), R: st }, knee: { L: [0.1, 0.4, 1], R: [0.12, 0, 1] }, toe: { L: 10, R: 0 }, plant: { L: 0, R: 1 }, kneeH: { L: 0, R: 1 } }, HIPS));
+    const out = stand(Object.assign({ foot: { L: H.hp(0.38, -0.36, -0.02), R: st }, knee: { L: [1, 0.4, 0.1], R: [0.12, 0, 1] }, toe: { L: 10, R: 0 }, plant: { L: 0, R: 1 }, kneeH: { L: 0, R: 1 }, pel: [0, 0, -3] }, HIPS));
+    const base = stand(HIPS);
+    W({ id: 'hip-openers', name: 'Hip openers (open the gate)', primary: ['glutes', 'adductors'], secondary: ['hipFlexors'], cam: [34, 8],
+      keys: [base, up, out, H.mirror(up), H.mirror(out)],
+      tl: [[1, 0.45], [2, 0.5], [0, 0.45], [0, 0.2], [3, 0.45], [4, 0.5], [0, 0.45], [0, 0.2]],
+      steps: ['Stand tall with your hands on your hips.', 'Lift one knee up in front to hip height.', 'Open the knee out to the side in a big circle, put the foot down, then switch legs.'],
+      cues: ['Make the circle as big as you can without leaning.', 'Squeeze the glute of the standing leg to stay balanced.'],
+      mistake: 'Leaning the body away instead of turning the hip out.',
+      dose: '8 each leg, then 8 each leg in reverse.' });
+  }
+
+  /* walking knee hug */
+  {
+    const tip = H.ballFoot(0.11, 0, 0.03, 30);
+    const hug = stand({ foot: { L: H.hp(0.0, -0.12, 0.3), R: tip }, knee: { L: [0.05, 0.8, 1], R: [0.12, 0, 1] }, toe: { L: 20, R: 30 }, plant: { L: 0, R: 1 }, kneeH: { L: 0, R: 1 },
+      hip: [0, 0.99, 0], hand: { L: H.pel(0.11, -0.2, 0.42), R: H.pel(-0.03, -0.2, 0.43) }, elbow: [1, -0.4, -0.3] });
+    W({ id: 'walking-knee-hug', name: 'Walking knee hug', primary: ['glutes', 'hamstrings'], secondary: ['calves', 'hipFlexors'], cam: [62, 8],
+      keys: [stand(), hug, H.mirror(hug)],
+      tl: [[1, 0.6], [1, 0.5], [0, 0.5], [0, 0.15], [2, 0.6], [2, 0.5], [0, 0.5], [0, 0.15]],
+      steps: ['Stand tall and step forward.', 'Grab one shin below the knee and hug the knee into your chest while you rise onto the toes of the other foot.', 'Let go, step forward and hug the other knee.'],
+      cues: ['Chest stays tall. Bring the knee to you, not you to the knee.', 'Squeeze the glute of the standing leg.'],
+      mistake: 'Rounding forward to reach the knee.',
+      dose: '8 to 10 each leg, walking or on the spot.' });
+  }
+
+  /* walking quad pull */
+  {
+    const pull = stand({ foot: { L: H.hp(0.03, -0.1, -0.16), R: st }, knee: { L: [0.05, -1, 0.1], R: [0.12, 0, 1] }, toe: { L: 40, R: 0 }, plant: { L: 0, R: 1 }, kneeH: { L: 0, R: 1 },
+      hand: { L: H.pel(0.13, -0.13, -0.24), R: H.sh(0.05, 0.6, 0.06) }, elbow: { L: [0.4, 0, -1], R: [0.3, 0, -1] } });
+    W({ id: 'walking-quad-pull', name: 'Walking quad pull', primary: ['quads', 'hipFlexors'], secondary: ['glutes'], cam: [72, 8],
+      keys: [stand(), pull, H.mirror(pull)],
+      tl: [[1, 0.6], [1, 0.5], [0, 0.5], [0, 0.15], [2, 0.6], [2, 0.5], [0, 0.5], [0, 0.15]],
+      steps: ['Stand tall and step forward.', 'Bend one knee and pull the heel to your glute with the same hand, while the other arm reaches up.', 'Let go, step forward and pull the other leg.'],
+      cues: ['Knees stay side by side. The bent knee points at the floor.', 'Squeeze the glute of the bent leg to open the front of the hip.'],
+      mistake: 'Arching the lower back and letting the knee drift forward.',
+      dose: '8 to 10 each leg, walking or on the spot.' });
+  }
+
+  /* high knees and butt kicks: running on the spot */
+  const runKeys = (up, upToe, upKnee) => {
+    const ball = H.ballFoot(0.1, 0.02, 0.03, 30);
+    const A = H.ARM;
+    const k = (side) => {
+      const o = side === 'L' ? 'R' : 'L';
+      return { hip: [0, 0.97, 0], pel: [2, 0, 0], nk: 0, foot: { [side]: up, [o]: ball }, toe: { [side]: upToe, [o]: 30 }, plant: { [side]: 0, [o]: 1 }, kneeH: { [side]: 0, [o]: 1 },
+        knee: { [side]: upKnee, [o]: [0.1, 0, 1] }, hand: { [side]: A.B, [o]: A.F }, elbow: { [side]: A.eB, [o]: A.eF } };
+    };
+    const mid = { hip: [0, 1.0, 0], pel: [2, 0, 0], nk: 0, foot: { L: [0.1, 0.16, 0.02], R: [0.1, 0.16, 0.02] }, toe: 25, plant: 0, knee: [0.1, 0, 1], hand: A.M, elbow: A.eM };
+    return { keys: [k('L'), mid, k('R'), mid], tl: [[1, 0.13, 'lin'], [2, 0.13, 'lin'], [3, 0.13, 'lin'], [0, 0.13, 'lin']] };
+  };
+  {
+    const r = runKeys(H.hp(0.02, -0.42, 0.43), 20, [0.1, 0.3, 1]);
+    W({ id: 'high-knees', name: 'High knees', primary: ['hipFlexors', 'quads'], secondary: ['calves', 'abs'], cam: [70, 6], keys: r.keys, tl: r.tl, rawTime: true,
+      steps: ['Stand tall with your feet hip width apart.', 'Run on the spot, driving each knee up to hip height.', 'Pump your arms and stay light on the balls of your feet.'],
+      cues: ['Knees up to hip height, chest tall.', 'Quick, quiet feet.'],
+      mistake: 'Leaning back to get the knees higher.',
+      dose: '20 to 30 seconds.' });
+  }
+  {
+    const r = runKeys(H.hp(0.02, -0.12, -0.17), 45, [0.05, -1, 0.1]);
+    W({ id: 'butt-kicks', name: 'Butt kicks', primary: ['hamstrings'], secondary: ['calves', 'quads'], cam: [72, 6], keys: r.keys, tl: r.tl, rawTime: true,
+      steps: ['Stand tall with your feet hip width apart.', 'Run on the spot, kicking each heel up toward your glutes.', 'Pump your arms and stay on the balls of your feet.'],
+      cues: ['Knees point down at the floor. The heel comes up, not forward.', 'Fast and light.'],
+      mistake: 'Leaning forward and letting the knees swing out in front.',
+      dose: '20 to 30 seconds.' });
+  }
+
+  /* jumping jacks */
+  {
+    const k0 = stand({ foot: { L: [0.1, 0.075, 0.03], R: [0.1, 0.075, 0.03] }, hand: H.sh(0.05, -0.59, 0.04), elbow: [0.1, 0.4, -1] });
+    const k1 = { hip: [0, 1.0, 0], pel: [0, 0, 0], nk: 0, foot: [0.24, 0.12, 0.03], toe: 25, plant: 0, knee: [0.2, 0, 1], hand: H.sh(0.6, 0.0, 0.05), elbow: [0.1, 0.4, -1] };
+    const k2 = { hip: [0, 0.91, 0], pel: [0, 0, 0], nk: 0, foot: [0.38, 0.075, 0.03], toe: 0, plant: 1, kneeH: 1, knee: [0.4, 0, 1], hand: H.sh(0.2, 0.57, 0.04), elbow: [0.1, 0.4, -1] };
+    W({ id: 'jumping-jacks', name: 'Jumping jacks', primary: ['calves', 'shoulders'], secondary: ['glutes', 'adductors'], cam: [8, 6],
+      keys: [k0, k1, k2], tl: [[1, 0.16, 'lin'], [2, 0.16, 'out'], [1, 0.16, 'in'], [0, 0.16, 'out']], rawTime: true,
+      steps: ['Stand with your feet together and arms by your sides.', 'Jump your feet out wide as your arms swing up over your head.', 'Jump back to the start and keep a steady rhythm.'],
+      cues: ['Land softly on the balls of your feet.', 'Arms straight, all the way up and all the way down.'],
+      mistake: 'Landing flat footed and heavy.',
+      dose: '30 seconds.' });
+  }
+
+  /* inchworm */
+  {
+    const fl = [0.12, 0.075, 0.03], pl = H.plank(0.14, 0.02, 20);
+    const k0 = stand();
+    const k1 = { hip: [0, 0.86, -0.13], pel: [124, 0, 0], nk: 26, foot: fl, toe: 0, plant: 1, kneeH: 1, knee: [0.12, 0, 1], hand: [0.15, 0.03, 0.3], elbow: [0.3, 0, -1] };
+    const k2 = { hip: [0, 0.84, 0.1], pel: [105, 0, 0], nk: 12, foot: [0.12, 0.1, 0.02], toe: 20, plant: 0, knee: [0.12, 0, 1], hand: [0.17, 0.03, 0.78], elbow: [0.3, 0, -1] };
+    const k3 = { hip: pl.hip, pel: pl.pel, nk: -12, foot: [0.1, 0.14, 0.02], toe: 0, plant: 0, knee: [0.1, 0, 1], hand: [0.22, 0.03, 1.23], elbow: [0.5, -0.6, -1] };
+    W({ id: 'inchworm', name: 'Inchworm', primary: ['hamstrings', 'shoulders'], secondary: ['abs', 'chest', 'calves'], cam: [70, 8],
+      keys: [k0, k1, k2, k3], tl: [[1, 0.9], [2, 0.7], [3, 0.7], [3, 0.5], [2, 0.7], [1, 0.7], [0, 0.9], [0, 0.4]],
+      steps: ['Stand tall, then hinge forward and put your hands on the floor in front of your feet.', 'Walk your hands out until you are in a high plank.', 'Walk your hands back to your feet and stand up.'],
+      cues: ['Keep your legs as straight as you can. Bend the knees a little if you need to.', 'Hips stay level in the plank, no sagging.'],
+      mistake: 'Letting the hips drop as the hands walk out.',
+      dose: '5 to 6 reps.' });
+  }
+
+  /* world's greatest stretch */
+  {
+    const legs = { foot: { L: [0.16, 0.075, 0.52], R: [0.1, 0.14, -0.78] }, knee: { L: [0.2, 0, 1], R: [0.1, 0, 1] }, toe: { L: 0, R: -45 }, plant: { L: 1, R: 0 }, kneeH: { L: 1, R: 0 } };
+    const base = Object.assign({ hip: [0, 0.48, -0.02], pel: [48, 0, 0], nk: -10 }, legs);
+    const handR = { w: [-0.02, 0.03, 0.55] };
+    const k0 = Object.assign({}, base, { hand: { L: { w: [0.34, 0.03, 0.52] }, R: handR }, elbow: { L: { w: [0.6, 0, -0.6] }, R: [0.3, 0, -1] } });
+    const k1 = Object.assign({}, base, { sp: [14, 0, -8], nk: 0, hand: { L: { w: [0.07, 0.17, 0.46] }, R: handR }, elbow: { L: { w: [0, -1, 0.3] }, R: [0.3, 0, -1] } });
+    const k2 = Object.assign({}, base, { sp: [0, 0, 55], nk: 8, hand: { L: { w: [0.45, 1.22, 0.22] }, R: handR }, elbow: { L: { w: [0.3, 0.3, -1] }, R: [0.3, 0, -1] } });
+    W({ id: 'worlds-greatest-stretch', name: "World's greatest stretch", primary: ['hipFlexors', 'glutes'], secondary: ['hamstrings', 'upperBack', 'obliques', 'adductors'], cam: [40, 14], equip: ['Mat'],
+      keys: [k0, k1, k2], tl: [[1, 0.8], [1, 0.5], [0, 0.6], [2, 0.9], [2, 0.6], [0, 0.8], [0, 0.3]],
+      props: (o, p, P) => P.mat(0, { len: 1.9, w: 0.45 }),
+      steps: ['Step one foot forward into a long lunge and put both hands on the floor inside the front foot.', 'Drop the inside elbow down toward the front instep.', 'Rotate your chest open and reach that arm to the ceiling, then switch sides.'],
+      cues: ['Back leg stays long and strong. Squeeze that glute.', 'Follow your top hand with your eyes.'],
+      mistake: 'Letting the back knee collapse to the floor and the hips drop.',
+      dose: '4 to 5 each side.' });
+  }
+
+  /* lateral lunge */
+  {
+    const hands = { hand: H.ch(0.06, 0.2, 0.28), elbow: [0.8, -1, 0] };
+    const wide = [0.42, 0.075, 0.03];
+    const c = Object.assign({ hip: [0, 0.9, 0], pel: [0, 0, 0], nk: 0, foot: wide, toe: 0, plant: 1, kneeH: 1, knee: [0.3, 0, 1] }, hands);
+    const l = Object.assign({ hip: [0.24, 0.57, -0.14], pel: [34, 0, 0], nk: -18, foot: wide, toe: 0, plant: 1, kneeH: 1, knee: { L: [0.35, 0, 1], R: [0.1, 0, 1] } }, hands);
+    W({ id: 'lateral-lunge', name: 'Lateral lunge', primary: ['adductors', 'glutes'], secondary: ['quads', 'hamstrings'], cam: [12, 8],
+      keys: [c, l, H.mirror(l)], tl: [[1, 0.8], [1, 0.4], [0, 0.7], [2, 0.8], [2, 0.4], [0, 0.7]],
+      steps: ['Stand with your feet wide and toes pointing forward.', 'Sit your hips back and to one side, bending that knee while the other leg stays straight.', 'Push back to the middle and go to the other side.'],
+      cues: ['Both feet stay flat. Sit back like you are reaching for a chair.', 'Feel the stretch along the inside of the straight leg.'],
+      mistake: 'Letting the bent knee cave in past the toes.',
+      dose: '6 to 8 each side.' });
+  }
+
+  /* squat to stand */
+  {
+    const fl = [0.17, 0.075, 0.03];
+    const fold = { hip: [0, 0.86, -0.14], pel: [125, 0, 0], nk: 26, foot: fl, toe: 0, plant: 1, kneeH: 1, knee: [0.18, 0, 1], hand: [0.13, 0.06, 0.21], elbow: [0.3, 0, -1] };
+    const sq = { hip: [0, 0.36, -0.16], pel: [26, 0, 0], sp: [-8, 0, 0], nk: -14, foot: fl, toe: 0, plant: 1, kneeH: 1, knee: [0.32, 0, 1], hand: [0.12, 0.07, 0.21], elbow: [0.1, -0.3, -1] };
+    W({ id: 'squat-to-stand', name: 'Squat to stand', primary: ['hamstrings', 'adductors'], secondary: ['glutes', 'lowerBack', 'calves'], cam: [72, 6],
+      keys: [fold, sq], tl: [[1, 1.0], [1, 0.6], [0, 1.0], [0, 0.6]],
+      steps: ['Stand with your feet shoulder width apart, fold forward and hold the tips of your toes.', 'Keep hold and sink your hips down into a deep squat with your chest up and elbows inside your knees.', 'Still holding your toes, lift your hips up and straighten your legs as far as you can.'],
+      cues: ['Chest proud at the bottom. Push your knees out with your elbows.', 'Heels stay down the whole time.'],
+      mistake: 'Letting go of the toes or rounding the back at the bottom.',
+      dose: '6 to 8 reps.' });
+  }
+
+  /* cat cow */
+  {
+    const base = { hip: [0, 0.5, -0.3], pel: [76, 0, 0], knee: [0.05, 0, 1], foot: [0.1, 0.08, -0.75], toe: 75, hand: [0.2, 0.035, 0.18], elbow: [0.2, 0, -1] };
+    W({ id: 'cat-cow', name: 'Cat cow', primary: ['lowerBack', 'abs'], secondary: ['upperBack'], cam: [80, 10], equip: ['Mat'],
+      keys: [H.with(base, { pel: [70, 0, 0], sp: [26, 0, 0], nk: 30 }), H.with(base, { pel: [84, 0, 0], sp: [-20, 0, 0], nk: -40 })],
+      tl: [[1, 1.3, 'sine'], [1, 0.3], [0, 1.3, 'sine'], [0, 0.3]], rawTime: true,
+      props: (o, p, P) => P.mat(-0.3, { len: 1.5 }),
+      steps: ['Start on your hands and knees with your hands under your shoulders and knees under your hips.', 'Breathe out and round your back up to the ceiling, tucking your chin.', 'Breathe in and let your stomach drop as you lift your chest and look forward.'],
+      cues: ['Move one bone at a time, starting from your tailbone.', 'Slow and in time with your breathing.'],
+      mistake: 'Only moving the neck and shoulders while the lower back stays still.',
+      dose: '8 to 10 slow reps.' });
+  }
+
+  /* scap push up */
+  {
+    const pl = H.plank(0.15, -1.2, 21);
+    const base = { hip: pl.hip, pel: pl.pel, nk: -12, foot: [0.1, 0.15, -1.2], knee: [0.1, 0, 1], hand: [0.2, 0.03, 0.02], elbow: [0.55, -0.7, -1] };
+    W({ id: 'scap-push-up', name: 'Scap push up', primary: ['upperBack', 'shoulders'], secondary: ['chest', 'abs'], cam: [40, 18],
+      keys: [H.with(base, { sp: [-6, 0, 0] }), H.with(base, { hip: [pl.hip[0], pl.hip[1] - 0.035, pl.hip[2]], sp: [8, 0, 0] })],
+      tl: [[1, 0.8], [1, 0.3], [0, 0.8], [0, 0.3]],
+      steps: ['Start in a high plank with your arms straight and hands under your shoulders.', 'Keep your arms locked and let your chest sink between your shoulder blades.', 'Push the floor away to spread your shoulder blades and round your upper back a little.'],
+      cues: ['Arms never bend. The movement is small and comes from the shoulder blades.', 'Hips and legs stay still like a plank.'],
+      mistake: 'Bending the elbows so it turns into a push up.',
+      dose: '10 to 12 slow reps.' });
+  }
+})();
+
+/* ---------------- FOLLOW ALONG ROUTINES ---------------- */
+(function () {
+  const L = EXERCISES;
+  const byId = (id) => L.find((e) => e.id === id);
+  const name = (id) => byId(id).name;
+  const flow = (ids, sec, gap) => ({ type: 'flow', gap, steps: ids.map((id) => ({ id, name: name(id), sec })) });
+  window.PETRO_ROUTINE = function (o) {
+    const first = byId(o.ids[0]);
+    const full = Object.assign({ key: 'full', label: 'Full' }, flow(o.ids, o.sec, 5));
+    const quick = Object.assign({ key: 'quick', label: 'Quick' }, flow(o.quick, o.qsec, 5));
+    L.push({
+      id: o.id, name: o.name, cat: 'Mobility', group: 'Follow along', kind: o.kind, equip: o.equip,
+      primary: o.primary, secondary: o.secondary, cam: first.cam, keys: first.keys, tl: first.tl, rawTime: first.rawTime, props: first.props, hold: first.hold,
+      session: { options: [full, quick], note: o.note, tip: o.tip },
+      steps: o.steps, cues: o.cues, mistake: o.mistake, dose: o.dose,
+    });
+  };
+  PETRO_ROUTINE({
+    id: 'follow-along-warm-up', name: 'Follow along warm up', kind: 'Warm up', equip: ['Body only', 'Mat'],
+    primary: ['hipFlexors', 'glutes', 'shoulders'], secondary: ['hamstrings', 'quads', 'calves', 'upperBack'],
+    ids: ['jumping-jacks', 'high-knees', 'butt-kicks', 'arm-circles', 'leg-swings-front-to-back', 'leg-swings-side-to-side', 'hip-openers', 'walking-knee-hug', 'walking-quad-pull', 'lateral-lunge', 'squat-to-stand', 'inchworm', 'worlds-greatest-stretch', 'cat-cow', 'scap-push-up'], sec: 25,
+    quick: ['jumping-jacks', 'high-knees', 'arm-circles', 'leg-swings-front-to-back', 'hip-openers', 'lateral-lunge', 'inchworm', 'worlds-greatest-stretch'], qsec: 30,
+    note: 'The clip shows the drill you are on. In the 5 second switch it shows the next one.',
+    tip: 'For leg swings and other one sided drills, switch sides halfway through the time.',
+    steps: ['Pick Full or Quick and tap Start.', 'Do each drill until the beep, then use the 5 second switch to get into the next one.', 'Go straight into your session when it ends.'],
+    cues: ['Start easy and build. By the end you should be warm and a little out of breath.', 'Tap any drill in the list to see how to do it.'],
+    mistake: 'Rushing through the drills with half range of motion.',
+    dose: 'Before every gym session. Use Full before heavy lifting or sprints.',
+  });
+})();
+
 (function () {
   const EX = window.EXERCISES;
   const CATS = {
@@ -4749,6 +5009,12 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
       lede: 'Strength, power, speed, trunk and contact work for rugby players. Tap any move to see the steps, why it matters on the pitch and what to do when you have no kit.',
       count: (n) => n + ' rugby moves in 8 groups',
     },
+    Mobility: {
+      tab: 'Warm up and mobility', sec: 'warm up and mobility section', chips: 'Warm up or cool down', kinds: ['All', 'Warm up', 'Cool down'],
+      groups: ['Follow along', 'Warm up', 'Cool down and mobility'],
+      lede: 'Warm up drills to get you moving before you train, and stretches to cool down after. Open a follow along routine for a timer that takes you through each drill.',
+      count: (n) => n + ' warm up and mobility moves',
+    },
     Cardio: {
       tab: 'Cardio', sec: 'cardio section', chips: 'Cardio type', kinds: ['All', 'Ski erg', 'Bike erg', 'Air bike', 'Rower', 'Treadmill', 'Run'],
       groups: ['Intervals', 'EMOM and AMRAP', 'Runs', 'Zone 2'],
@@ -4759,7 +5025,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
   const CAT_NAMES = Object.keys(CATS);
   const catOf = (e) => e.cat || 'Gym';
   const label = (g) => { const s = g.replace(/^Rugby /, ''); return s.charAt(0).toUpperCase() + s.slice(1); };
-  const kc = (e) => (catOf(e) === 'Cardio' ? 'c' : e.kind === 'Weights' || e.kind === 'Gym' ? 'w' : 'b');
+  const kc = (e) => (catOf(e) === 'Cardio' || e.kind === 'Warm up' ? 'c' : e.kind === 'Weights' || e.kind === 'Gym' ? 'w' : 'b');
   const MUSCLE_NAME = {
     chest: 'Chest', frontDelts: 'Front shoulders', sideDelts: 'Side shoulders', rearDelts: 'Rear shoulders', shoulders: 'Shoulders',
     traps: 'Traps', upperBack: 'Upper back', rhomboids: 'Mid back', lats: 'Lats', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms',
@@ -4773,7 +5039,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     e.hay = [e.name, e.group, e.kind, catOf(e), ...e.equip, ...e.primary.map(mname), ...e.secondary.map(mname)].join(' ').toLowerCase();
   });
   const bySlug = Object.fromEntries(EX.map((e) => [e.slug, e]));
-  const CAT_HASH = { Gym: '', Rugby: '#rugby', Cardio: '#cardio' };
+  const CAT_HASH = { Gym: '', Rugby: '#rugby', Cardio: '#cardio', Mobility: '#mobility' };
   const groupSlug = {};
   CAT_NAMES.forEach((c) => CATS[c].groups.forEach((g) => { groupSlug[slug(g)] = { g, cat: c }; }));
   const reduce = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
@@ -4840,7 +5106,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
         b.hidden = !ok; if (ok) n++;
       }
       sec.hidden = n === 0;
-      sec.querySelector('.cnt').textContent = n + (sec.dataset.cat === 'Cardio' ? (n === 1 ? ' session' : ' sessions') : (n === 1 ? ' move' : ' moves'));
+      sec.querySelector('.cnt').textContent = n + (sec.dataset.cat === 'Cardio' || sec.dataset.group === 'Follow along' ? (n === 1 ? ' session' : ' sessions') : (n === 1 ? ' move' : ' moves'));
       shown += n;
     }
     $('#empty').hidden = shown !== 0;
@@ -4950,6 +5216,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     $('#d-dose-s .lbl').textContent = ex.session ? 'Effort' : 'Typical dose';
     $('#d-swap-s .lbl').textContent = ex.session ? 'No machine?' : 'If you have no kit';
     PetroSession.open(ex, opt);
+    $('#sheet .panel').classList.toggle('flow', !!(ex.session && ex.session.options.some((o) => o.type === 'flow')));
     const moveName = /^[A-Z][a-z]/.test(ex.name) ? ex.name.charAt(0).toLowerCase() + ex.name.slice(1) : ex.name;
     $('#d-wa').href = 'https://wa.me/27635028839?text=' + encodeURIComponent('Hi Josh, I have a question about the ' + moveName + '.');
     const more = EX.filter((e) => e.group === ex.group && catOf(e) === catOf(ex) && e !== ex);
@@ -4997,6 +5264,16 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     $('#d-slow').addEventListener('click', () => { detail.pl.speed = detail.pl.speed < 1 ? 1 : 0.45; if (!detail.pl.playing) { detail.pl.playing = true; detail.pl.last = null; } syncButtons(); });
   }
 
+  document.addEventListener('petro-drill', (e) => {
+    if (!detail || detail.sheet.hidden || !detail.ex.session) return;
+    const d = bySlug[slug(e.detail)]; if (!d || detail.drill === d) return;
+    const cv = $('#d-cv'); const pl = new PetroFig.Player(cv, d); pl.speed = detail.pl.speed; pl.playing = detail.pl.playing;
+    detail.pl = pl; detail.drill = d;
+    const bb = pl.bb; cv.parentElement.style.aspectRatio = (bb.x1 - bb.x0) / (bb.y1 - bb.y0) > 1.3 ? '4 / 3' : '1 / 1';
+    requestAnimationFrame(() => { sizeCanvas(cv, DPR); pl.render(0); });
+    $('#d-hold').hidden = !d.hold;
+  });
+
   /* ---------- routing ---------- */
   function route() {
     const h = (location.hash || '').replace('#', '');
@@ -5006,6 +5283,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
     closeDetail();
     if (h === 'rugby') { setCat('Rugby'); return; }
     if (h === 'cardio') { setCat('Cardio'); return; }
+    if (h === 'mobility' || h === 'warmup' || h === 'cooldown') { setCat('Mobility'); return; }
     if (h === 'gym' || h === 'muscle') { setCat('Gym'); return; }
     if (groupSlug[h]) { setCat(groupSlug[h].cat); state.group = groupSlug[h].g; applyFilters(); setTimeout(scrollToLib, 60); }
   }
