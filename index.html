@@ -5843,7 +5843,7 @@ PETRO_ROUTINE({
   async function load(code) {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 12000);
     try {
-      const r = await fetch(API + '?action=client&c=' + encodeURIComponent(code), { signal: ctl.signal }), j = await r.json();
+      const r = await fetch(API + '?action=client&code=' + encodeURIComponent(code), { signal: ctl.signal }), j = await r.json();
       clearTimeout(t); return j;
     } catch (e) { clearTimeout(t); return null; }
   }
