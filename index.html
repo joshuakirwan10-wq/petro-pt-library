@@ -5218,6 +5218,403 @@ PETRO_ROUTINE({
   dose: 'After every session. Use Full on rest days or after your hardest sessions.',
 });
 
+/* ---------- training log: sets, reps, kg, RPE, rest timer, PRs, progress report ---------- */
+(function (G) {
+  const KEY = 'petro-log', WA = '27635028839';
+  const blank = () => ({ v: 1, log: {}, target: {}, rest: 90, name: '' });
+  const load = () => { try { return Object.assign(blank(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return blank(); } };
+  const store = (d) => { try { localStorage.setItem(KEY, JSON.stringify(d)); return true; } catch (e) { return false; } };
+  const pad = (n) => String(n).padStart(2, '0');
+  const dayOf = (t) => { const n = t ? new Date(t) : new Date(); return n.getFullYear() + '-' + pad(n.getMonth() + 1) + '-' + pad(n.getDate()); };
+  const nice = (d) => { const [y, m, dd] = d.split('-').map(Number); return dd + ' ' + new Date(y, m - 1, dd).toLocaleString('en', { month: 'short' }); };
+  const kgs = (k) => String(Math.round(k * 10) / 10);
+  const e1 = (kg, r) => (kg > 0 && r > 0 ? (r === 1 ? kg : kg * (1 + r / 30)) : 0);
+  const done = (en) => (en && en.sets || []).filter((s) => s.done && s.reps > 0);
+  // the summary of one session: heaviest set, best estimated max, best reps, volume
+  function stat(en) {
+    const ss = done(en); if (!ss.length) return null;
+    const w = ss.some((s) => s.kg > 0);
+    let top = null, max = 0, reps = 0, vol = 0;
+    for (const s of ss) {
+      if (!top || s.kg > top.kg || (s.kg === top.kg && s.reps > top.reps)) top = s;
+      max = Math.max(max, e1(s.kg, s.reps)); reps = Math.max(reps, s.reps); vol += (s.kg || 0) * s.reps;
+    }
+    return { w, top, max, reps, vol, sets: ss.length };
+  }
+  const score = (st) => (st ? (st.w ? st.max : st.reps) : 0);
+  const fmtTop = (st) => (st.w ? kgs(st.top.kg) + ' kg × ' + st.top.reps : st.reps + ' reps');
+  const line = (en) => {
+    const ss = done(en), out = []; let rpe = 0;
+    for (const s of ss) { rpe = Math.max(rpe, +s.rpe || 0); const k = s.kg > 0 ? kgs(s.kg) + ' kg' : 'BW'; const g = out[out.length - 1]; if (g && g.k === k) g.r.push(s.reps); else out.push({ k, r: [s.reps] }); }
+    return out.map((g) => (g.k === 'BW' ? g.r.join(', ') + ' reps' : g.k + ' × ' + g.r.join(', '))).join('; ') + (rpe ? ', hardest RPE ' + rpe : '');
+  };
+  const dates = (id, D) => Object.keys((D || load()).log[id] || {}).sort();
+
+  /* ---------- styles ---------- */
+  const css = `
+  #lg { border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 10px; min-width: 0; }
+  #lg .lbl { margin: 0; }
+  .lg-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .lg-date { font-size: 14px; color: var(--muted); }
+  .lg-last, .lg-tip { margin: 0; font-size: 15px; }
+  .lg-tip { padding: 10px 12px; border-radius: 10px; background: var(--b); color: var(--b-ink); font-weight: 600; }
+  .lg-tip[hidden] { display: none; }
+  .lg-hd, .lg-row { display: grid; grid-template-columns: 22px minmax(0, 1.9fr) minmax(0, 1fr) minmax(0, 1fr) 44px; gap: 6px; align-items: center; }
+  .lg-hd { font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .lg-hd span { text-align: center; }
+  .lg-rows { display: grid; gap: 6px; }
+  .lg-row .n { font-family: var(--display); font-weight: 700; font-size: 17px; text-align: center; color: var(--muted); }
+  .lg-row input, .lg-row select { width: 100%; min-width: 0; box-sizing: border-box; height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: 17px; font-variant-numeric: tabular-nums; text-align: center; padding: 0 2px; }
+  .lg-kg { display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; gap: 3px; }
+  .lg-kg button { height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; font-size: 18px; cursor: pointer; padding: 0; }
+  .lg-tick { height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; display: grid; place-items: center; }
+  .lg-tick svg { width: 20px; height: 20px; }
+  .lg-row.on input, .lg-row.on select { background: var(--b); color: var(--b-ink); border-color: transparent; }
+  .lg-row.on .lg-tick { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .lg-pr { grid-column: 2 / -1; justify-self: start; font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; background: var(--accent); color: var(--accent-ink); padding: 2px 8px; border-radius: 6px; }
+  .lg-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .lg-acts button, .lg-btn { height: 42px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; }
+  .lg-rest { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--ink); color: var(--bg); }
+  .lg-rest[hidden] { display: none; }
+  .lg-rest b { font-family: var(--display); font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .lg-rest span { flex: 1; }
+  .lg-rest button { height: 38px; padding: 0 12px; border-radius: 10px; border: 0; background: var(--surface); color: var(--ink); font-weight: 600; cursor: pointer; }
+  .lg-set summary, .lg-help summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+  .lg-set > div { display: grid; gap: 10px; margin-top: 6px; }
+  .lg-set .opts button { font-size: 16px; min-height: 40px; }
+  .lg-tgt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .lg-tgt input { width: 64px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); text-align: center; font: inherit; font-size: 17px; }
+  .lg-help p { margin: 6px 0 0; font-size: 15px; color: var(--muted); }
+  #lg textarea { width: 100%; box-sizing: border-box; min-height: 60px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: 16px; padding: 10px 12px; resize: vertical; }
+  .lg-saved { margin: 0; font-size: 14px; color: var(--muted); }
+  .lg-chart { position: relative; }
+  .lg-chart canvas { width: 100%; height: 170px; display: block; }
+  .lg-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .lg-legend i { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+  .lg-tipbox { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 13px; padding: 6px 8px; border-radius: 8px; white-space: nowrap; transform: translate(-50%, -110%); font-variant-numeric: tabular-nums; }
+  .lg-hist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 14px; }
+  .lg-hist li { display: grid; grid-template-columns: 64px 1fr; gap: 10px; padding: 8px 12px; }
+  .lg-hist li + li { border-top: 1px solid var(--line); }
+  .lg-hist li span:first-child { color: var(--muted); }
+  .my-btn { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-radius: 12px; border: 0; background: var(--ink); color: var(--bg); font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; justify-self: start; }
+  .my-btn svg { width: 18px; height: 18px; }
+  .pg { display: grid; gap: 18px; padding: 14px max(16px, env(safe-area-inset-right, 0px)) 28px max(16px, env(safe-area-inset-left, 0px)); }
+  .pg h3 { margin: 0; font-family: var(--display); font-weight: 700; font-size: clamp(30px, 6vw, 40px); line-height: 1; }
+  .pg-name { display: grid; gap: 4px; font-weight: 600; font-size: 15px; max-width: 360px; }
+  .pg-name input { height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); padding: 0 12px; font: inherit; font-size: 17px; }
+  .pg-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  @media (min-width: 720px) { .pg-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .pg-tile { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 2px; }
+  .pg-tile b { font-family: var(--display); font-size: 32px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .pg-tile span { font-size: 14px; color: var(--muted); }
+  .pg-lifts { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .pg-lifts li + li { border-top: 1px solid var(--line); }
+  .pg-lifts button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; text-align: left; border: 0; background: none; padding: 12px; cursor: pointer; font: inherit; color: inherit; }
+  .pg-lifts .nm2 { font-weight: 600; }
+  .pg-lifts .ch { font-family: var(--display); font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; text-align: right; }
+  .pg-lifts .ch.up { color: var(--wa-ink); }
+  .pg-lifts .sub2 { grid-column: 1 / -1; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .pg-acts { display: grid; gap: 10px; }
+  .pg-acts .wa-btn { max-width: 100%; }
+  .pg-small { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pg-empty { margin: 0; padding: 16px; border-radius: 12px; background: var(--chip); }
+  `;
+
+  const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>';
+  const RPES = ['', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10'];
+  let api = null, ex = null, rows = [], restT = null, restEnd = 0, ac = null;
+  const $ = (s, el) => (el || document).querySelector(s);
+
+  function beep(f, d) { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime; o.frequency.value = f; o.connect(g); g.connect(ac.destination); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.start(t); o.stop(t + d + 0.02); } catch (e) {} }
+  const buzz = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
+
+  /* ---------- the log card in each move ---------- */
+  function build() {
+    const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+    const sec = document.createElement('section'); sec.id = 'lg'; sec.hidden = true;
+    sec.innerHTML = '<div class="lg-top"><p class="lbl">Log your sets</p><span class="lg-date" id="lg-date"></span></div>' +
+      '<p class="lg-last" id="lg-last"></p><p class="lg-tip" id="lg-tip" hidden></p>' +
+      '<div class="lg-hd" aria-hidden="true"><span>#</span><span style="text-align:center">kg</span><span>Reps</span><span>RPE</span><span></span></div>' +
+      '<div class="lg-rows" id="lg-rows"></div>' +
+      '<div class="lg-rest" id="lg-rest" hidden aria-live="polite"><span>Rest</span><b id="lg-restc">1:30</b><button type="button" id="lg-rest15">+15 s</button><button type="button" id="lg-restx">Skip</button></div>' +
+      '<div class="lg-acts"><button type="button" id="lg-add">Add set</button><button type="button" id="lg-del">Remove last set</button></div>' +
+      '<textarea id="lg-note" placeholder="Notes for today, like felt heavy or left knee"></textarea>' +
+      '<p class="lg-saved" id="lg-saved">Tick a set to save it. Your log stays on this phone.</p>' +
+      '<details class="lg-set"><summary>Rest time and rep target</summary><div><div class="opts" id="lg-rests" role="group" aria-label="Rest time"></div>' +
+      '<div class="lg-tgt"><span>Rep target</span><input id="lg-lo" type="number" inputmode="numeric" min="1" max="50" aria-label="Lowest reps"><span>to</span><input id="lg-hi" type="number" inputmode="numeric" min="1" max="50" aria-label="Highest reps"></div>' +
+      '<p class="note">When every set hits the top of your rep target, the next session suggests 2.5 kg more.</p></div></details>' +
+      '<details class="lg-help"><summary>What is RPE?</summary><p>RPE is how hard a set felt, from 1 to 10, judged by how many reps you had left. 10 means you could not do one more rep. 9 means 1 left, 8 means 2 left. Most working sets should land around 7 to 9.</p></details>' +
+      '<div id="lg-histw" hidden><p class="lbl" style="margin-top:6px">Your progress</p><div class="lg-legend" id="lg-legend"></div><div class="lg-chart"><canvas id="lg-cv" role="img"></canvas><div class="lg-tipbox" id="lg-tipbox" hidden></div></div><ul class="lg-hist" id="lg-hist"></ul></div>';
+    const info = $('.pinfo'); info.insertBefore(sec, info.children[1]);
+    $('#lg-add').addEventListener('click', () => { const l = rows[rows.length - 1] || { kg: '', reps: '' }; rows.push({ kg: l.kg, reps: l.reps, rpe: '', done: false }); draw(); });
+    $('#lg-del').addEventListener('click', () => { if (rows.length > 1) { rows.pop(); persist(); draw(); } });
+    $('#lg-note').addEventListener('input', persist);
+    $('#lg-restx').addEventListener('click', () => rest(0));
+    $('#lg-rest15').addEventListener('click', () => { restEnd += 15000; });
+    const D = load(), rs = $('#lg-rests');
+    rs.innerHTML = [60, 90, 120, 180].map((s) => '<button type="button" data-s="' + s + '">' + (s < 120 ? s + ' s' : s / 60 + ' min') + '</button>').join('');
+    for (const b of rs.querySelectorAll('button')) b.addEventListener('click', () => { const d = load(); d.rest = +b.dataset.s; store(d); paintRests(); });
+    for (const id of ['lo', 'hi']) $('#lg-' + id).addEventListener('change', () => { const d = load(); const lo = +$('#lg-lo').value, hi = +$('#lg-hi').value; if (lo > 0 && hi >= lo) { d.target[ex.id] = [lo, hi]; store(d); open(ex, true); } });
+    paintRests(D);
+    buildProgress();
+  }
+  function paintRests(D) { D = D || load(); for (const b of document.querySelectorAll('#lg-rests button')) b.setAttribute('aria-pressed', String(+b.dataset.s === D.rest)); }
+  const target = (D, id) => D.target[id] || [8, 12];
+
+  function suggest(D, id) {
+    const ds = dates(id, D).filter((d) => d < dayOf());
+    if (!ds.length) return { last: null };
+    const last = D.log[id][ds[ds.length - 1]], ss = done(last), st = stat(last), [lo, hi] = target(D, id);
+    if (!st) return { last: null };
+    const hit = ss.length && ss.every((s) => s.reps >= hi);
+    let sets, tip = '';
+    if (st.w) {
+      const up = hit ? 2.5 : 0;
+      sets = ss.map((s) => ({ kg: s.kg + up, reps: hit ? lo : s.reps, rpe: '', done: false }));
+      tip = hit ? 'You hit ' + hi + ' reps on every set last time. Today add 2.5 kg and start again at ' + lo + ' reps.' : 'Same weight as last time. Beat at least one set by a rep.';
+    } else {
+      sets = ss.map((s) => ({ kg: '', reps: s.reps + 1, rpe: '', done: false }));
+      tip = 'Bodyweight move. Aim for one more rep than last time on each set.';
+    }
+    return { last, lastDate: ds[ds.length - 1], st, sets, tip };
+  }
+
+  function open(e, keep) {
+    ex = e;
+    const ok = e && !e.session && (!e.cat || e.cat === 'Rugby') && e.kind !== 'Field';
+    $('#lg').hidden = !ok; if (!ok) return;
+    const D = load(), t = dayOf(), cur = (D.log[e.id] || {})[t], sg = suggest(D, e.id), [lo, hi] = target(D, e.id);
+    $('#lg-date').textContent = 'Today, ' + nice(t);
+    $('#lg-lo').value = lo; $('#lg-hi').value = hi;
+    $('#lg-last').textContent = sg.last ? 'Last time, ' + nice(sg.lastDate) + ': ' + line(sg.last) : 'First time logging this move. Start with a weight you can do for ' + hi + ' clean reps.';
+    $('#lg-tip').hidden = !sg.tip || !!cur; $('#lg-tip').textContent = sg.tip || '';
+    if (!keep) {
+      rows = cur ? cur.sets.map((s) => Object.assign({}, s)) : sg.sets ? sg.sets : [0, 1, 2].map(() => ({ kg: '', reps: '', rpe: '', done: false }));
+      $('#lg-note').value = cur ? cur.note || '' : '';
+    }
+    draw(); histView();
+  }
+
+  function prevBest(D, id) { let b = 0, kg = 0; for (const d of dates(id, D)) if (d < dayOf()) { const s = stat(D.log[id][d]); if (s) { b = Math.max(b, score(s)); if (s.w) kg = Math.max(kg, s.top.kg); } } return { b, kg, any: dates(id, D).some((d) => d < dayOf()) }; }
+
+  function draw() {
+    const D = load(), pb = prevBest(D, ex.id);
+    const box = $('#lg-rows'); box.innerHTML = '';
+    rows.forEach((r, i) => {
+      const el = document.createElement('div'); el.className = 'lg-row' + (r.done ? ' on' : '');
+      el.innerHTML = '<span class="n">' + (i + 1) + '</span>' +
+        '<div class="lg-kg"><button type="button" data-k="-" aria-label="2.5 kg less">−</button><input type="text" inputmode="decimal" aria-label="Set ' + (i + 1) + ' kg" placeholder="BW"><button type="button" data-k="+" aria-label="2.5 kg more">+</button></div>' +
+        '<input type="text" inputmode="numeric" aria-label="Set ' + (i + 1) + ' reps" placeholder="0">' +
+        '<select aria-label="Set ' + (i + 1) + ' RPE">' + RPES.map((v) => '<option value="' + v + '">' + (v || ' ') + '</option>').join('') + '</select>' +
+        '<button type="button" class="lg-tick" aria-label="Set ' + (i + 1) + ' done" aria-pressed="' + r.done + '">' + TICK + '</button>';
+      const [kg, reps] = el.querySelectorAll('input'), sel = el.querySelector('select');
+      kg.value = r.kg === '' || r.kg == null ? '' : kgs(r.kg); reps.value = r.reps || ''; sel.value = r.rpe || '';
+      const num = (v) => { const x = parseFloat(String(v).replace(',', '.')); return isFinite(x) && x > 0 ? x : ''; };
+      kg.addEventListener('input', () => { r.kg = num(kg.value); if (r.done) persist(); });
+      reps.addEventListener('input', () => { r.reps = Math.round(num(reps.value)) || ''; if (r.done) persist(); });
+      sel.addEventListener('change', () => { r.rpe = sel.value; if (r.done) persist(); });
+      for (const b of el.querySelectorAll('[data-k]')) b.addEventListener('click', () => { const v = Math.max(0, (num(r.kg) || 0) + (b.dataset.k === '+' ? 2.5 : -2.5)); r.kg = v || ''; kg.value = r.kg === '' ? '' : kgs(r.kg); if (r.done) persist(); });
+      el.querySelector('.lg-tick').addEventListener('click', () => {
+        if (!r.done && !(r.reps > 0)) { reps.focus(); return; }
+        r.done = !r.done; persist(); draw();
+        if (r.done) { buzz(40); if (rows.some((x) => !x.done)) rest(load().rest); }
+      });
+      box.appendChild(el);
+      if (r.done && pb.any && r.reps > 0) {
+        const sc = r.kg > 0 ? e1(r.kg, r.reps) : r.reps;
+        const firstPR = rows.slice(0, i).every((x) => !x.done || (x.kg > 0 ? e1(x.kg, x.reps) : x.reps) < sc);
+        if (sc > pb.b && firstPR) { const p = document.createElement('span'); p.className = 'lg-pr'; p.textContent = r.kg > pb.kg && r.kg > 0 ? 'New PR. Heaviest ever' : 'New PR'; box.appendChild(p); }
+      }
+    });
+  }
+  function persist() {
+    const D = load(), t = dayOf(); D.log[ex.id] = D.log[ex.id] || {};
+    const ss = rows.map((r) => ({ kg: r.kg === '' ? 0 : +r.kg, reps: +r.reps || 0, rpe: r.rpe || '', done: !!r.done }));
+    if (ss.some((s) => s.done)) D.log[ex.id][t] = { sets: ss, note: $('#lg-note').value.trim() }; else delete D.log[ex.id][t];
+    if (!Object.keys(D.log[ex.id]).length) delete D.log[ex.id];
+    $('#lg-saved').textContent = store(D) ? (ss.some((s) => s.done) ? 'Saved on this phone at ' + new Date().toTimeString().slice(0, 5) + '.' : 'Tick a set to save it. Your log stays on this phone.') : 'Could not save. Your phone storage may be full or in private mode.';
+    histView();
+  }
+
+  /* ---------- rest timer ---------- */
+  function rest(sec) {
+    clearInterval(restT); const box = $('#lg-rest');
+    if (!sec) { box.hidden = true; return; }
+    restEnd = Date.now() + sec * 1000; box.hidden = false; let cued = -1;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((restEnd - Date.now()) / 1000));
+      $('#lg-restc').textContent = Math.floor(left / 60) + ':' + pad(left % 60);
+      if (left <= 3 && left >= 1 && left !== cued) { cued = left; beep(880, 0.12); }
+      if (left === 0) { clearInterval(restT); beep(1175, 0.6); buzz([300, 120, 300]); $('#lg-restc').textContent = 'Go'; setTimeout(() => { if (Date.now() >= restEnd) box.hidden = true; }, 2500); }
+    };
+    tick(); restT = setInterval(tick, 250);
+  }
+
+  /* ---------- per move chart and history ---------- */
+  function series(id, D, from) {
+    return dates(id, D).filter((d) => !from || d >= from).map((d) => ({ d, st: stat(D.log[id][d]), note: D.log[id][d].note })).filter((x) => x.st);
+  }
+  function histView() {
+    const D = load(), pts = series(ex.id, D), w = $('#lg-histw');
+    w.hidden = !pts.length; if (!pts.length) return;
+    const weighted = pts.some((p) => p.st.w);
+    const css2 = getComputedStyle(document.documentElement), dark = css2.getPropertyValue('--bg').trim().toLowerCase() === '#0d1114';
+    const C1 = dark ? '#F0583F' : '#C9361F', C2 = dark ? '#4A90E2' : '#1F6FC5';
+    $('#lg-legend').innerHTML = weighted ? '<span><i style="border-color:' + C1 + '"></i>Heaviest set (kg)</span><span><i style="border-color:' + C2 + ';border-top-style:dashed"></i>Estimated 1 rep max (kg)</span>' : '<span><i style="border-color:' + C1 + '"></i>Best set (reps)</span>';
+    const S = [{ c: C1, v: pts.map((p) => (weighted ? p.st.top.kg : p.st.reps)) }];
+    if (weighted) S.push({ c: C2, v: pts.map((p) => Math.round(p.st.max * 10) / 10), dash: true });
+    chart($('#lg-cv'), pts.map((p) => nice(p.d)), S, weighted ? 'kg' : 'reps', pts);
+    $('#lg-hist').innerHTML = pts.slice(-6).reverse().map((p) => '<li><span>' + nice(p.d) + '</span><span>' + line(D.log[ex.id][p.d]) + (p.note ? '<br><span style="color:var(--muted)">' + p.note.replace(/[<>&]/g, '') + '</span>' : '') + '</span></li>').join('');
+  }
+  function chart(cv, labels, S, unit, pts) {
+    const r = cv.getBoundingClientRect(), k = Math.min(window.devicePixelRatio || 1, 2);
+    const W = Math.max(1, r.width), Hh = 170; cv.width = W * k; cv.height = Hh * k;
+    const c = cv.getContext('2d'); c.setTransform(k, 0, 0, k, 0, 0); c.clearRect(0, 0, W, Hh);
+    const cs = getComputedStyle(document.documentElement), ink = cs.getPropertyValue('--muted').trim(), line = cs.getPropertyValue('--line').trim();
+    const all = S.flatMap((s) => s.v); let lo = Math.min(...all), hi = Math.max(...all);
+    if (hi === lo) { lo -= 5; hi += 5; } const padv = (hi - lo) * 0.15; lo = Math.max(0, lo - padv); hi += padv;
+    const L = 40, R = 12, T = 12, B = 26, n = labels.length;
+    const X = (i) => (n === 1 ? (L + W - R) / 2 : L + (W - L - R) * i / (n - 1)), Y = (v) => T + (Hh - T - B) * (1 - (v - lo) / (hi - lo));
+    c.font = '12px Barlow, system-ui, sans-serif'; c.fillStyle = ink; c.strokeStyle = line; c.lineWidth = 1;
+    for (let g = 0; g <= 3; g++) { const v = lo + (hi - lo) * g / 3, y = Y(v); c.beginPath(); c.moveTo(L, y); c.lineTo(W - R, y); c.stroke(); c.textAlign = 'right'; c.fillText(String(Math.round(v)), L - 6, y + 4); }
+    c.textAlign = 'center'; const step = Math.ceil(n / 4);
+    labels.forEach((l, i) => { if (i % step === 0 || i === n - 1) { if (i === n - 1 && i % step && n - 1 - (i - i % step) < step / 2) return; c.textAlign = n > 1 && i === n - 1 ? 'right' : n > 1 && i === 0 ? 'left' : 'center'; c.fillText(l, n > 1 && i === n - 1 ? W - R : n > 1 && i === 0 ? L - 4 : X(i), Hh - 8); } });
+    for (const s of S) {
+      c.strokeStyle = s.c; c.lineWidth = 2; c.setLineDash(s.dash ? [5, 4] : []); c.beginPath(); s.v.forEach((v, i) => (i ? c.lineTo(X(i), Y(v)) : c.moveTo(X(i), Y(v)))); c.stroke(); c.setLineDash([]);
+      const bg = cs.getPropertyValue('--surface').trim();
+      s.v.forEach((v, i) => { c.beginPath(); c.arc(X(i), Y(v), 4.5, 0, Math.PI * 2); c.fillStyle = s.c; c.fill(); c.lineWidth = 2; c.strokeStyle = bg; c.stroke(); });
+    }
+    const tip = $('#lg-tipbox');
+    cv.setAttribute('aria-label', 'Chart of your ' + unit + ' over ' + n + ' sessions');
+    cv.onpointermove = cv.onpointerdown = (ev) => {
+      const b = cv.getBoundingClientRect(), x = ev.clientX - b.left; let i = 0, dmin = 1e9;
+      for (let j = 0; j < n; j++) { const dd = Math.abs(X(j) - x); if (dd < dmin) { dmin = dd; i = j; } }
+      const p = pts[i]; tip.hidden = false; tip.style.left = X(i) + 'px'; tip.style.top = Y(S[0].v[i]) + 'px';
+      tip.textContent = labels[i] + ': ' + (p.st.w ? kgs(p.st.top.kg) + ' kg × ' + p.st.top.reps + ', est. max ' + Math.round(p.st.max) + ' kg' : p.st.reps + ' reps');
+    };
+    cv.onpointerleave = () => { tip.hidden = true; };
+  }
+
+  /* ---------- my progress ---------- */
+  const BLOCKS = [[4, '4 weeks'], [8, '8 weeks'], [12, '12 weeks'], [0, 'All time']];
+  let blk = 8;
+  function buildProgress() {
+    const hdr = $('.top');
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'my-btn'; b.id = 'my-btn';
+    b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l4-4 3 3 5-6"></path></svg>My training log';
+    hdr.appendChild(b); b.addEventListener('click', () => { try { location.hash = 'progress'; } catch (e) { openProgress(); } });
+    const sh = document.createElement('div'); sh.className = 'sheet'; sh.id = 'pg'; sh.hidden = true; sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true'); sh.setAttribute('aria-labelledby', 'pg-h');
+    sh.innerHTML = '<div class="panel"><div class="ptop"><span class="g">Petro Personal Training</span><button class="x" type="button" id="pg-x" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></div>' +
+      '<div class="pg"><h3 id="pg-h">My training log</h3>' +
+      '<label class="pg-name">Your name<input id="pg-name" type="text" autocomplete="given-name" placeholder="For your progress report"></label>' +
+      '<div class="opts" id="pg-blk" role="group" aria-label="Block length"></div><p class="plain" id="pg-range"></p>' +
+      '<div id="pg-body"></div>' +
+      '<div class="pg-acts" id="pg-acts"><a class="wa-btn" id="pg-wa" href="#" target="_blank" rel="noopener">Send my report to Josh</a><button type="button" class="lg-btn" id="pg-img">Save report as an image</button></div>' +
+      '<details class="lg-help"><summary>Back up or move your log</summary><p>Your log is saved on this phone only. Save a backup file now and then, and restore it if you change phones.</p><div class="pg-small" style="margin-top:10px"><button type="button" class="lg-btn" id="pg-bk">Save backup file</button><label class="lg-btn" style="display:inline-flex;align-items:center">Restore from file<input type="file" id="pg-rs" accept="application/json,.json" hidden></label></div><p id="pg-msg" class="lg-saved"></p></details>' +
+      '</div></div>';
+    document.body.appendChild(sh);
+    $('#pg-x').addEventListener('click', closeProgress);
+    sh.addEventListener('click', (e) => { if (e.target === sh) closeProgress(); });
+    $('#pg-name').addEventListener('input', () => { const d = load(); d.name = $('#pg-name').value.trim(); store(d); paintProgress(); });
+    $('#pg-blk').innerHTML = BLOCKS.map(([w, l]) => '<button type="button" data-w="' + w + '">' + l + '</button>').join('');
+    for (const x of document.querySelectorAll('#pg-blk button')) x.addEventListener('click', () => { blk = +x.dataset.w; paintProgress(); });
+    $('#pg-bk').addEventListener('click', backup);
+    $('#pg-rs').addEventListener('change', restore);
+    $('#pg-img').addEventListener('click', shareImage);
+  }
+  function report() {
+    const D = load(), now = dayOf(), from = blk ? dayOf(Date.now() - blk * 7 * 864e5) : '';
+    const lifts = [], days = new Set(); let sets = 0, vol = 0, prs = 0;
+    for (const id of Object.keys(D.log)) {
+      const e = api.byId(id); if (!e) continue;
+      const all = series(id, D), inb = all.filter((p) => !from || p.d >= from);
+      if (!inb.length) continue;
+      let best = 0; for (const p of all) { if (from && p.d >= from && best > 0 && score(p.st) > best) prs++; else if (!from && best > 0 && score(p.st) > best) prs++; best = Math.max(best, score(p.st)); }
+      for (const p of inb) { days.add(p.d); sets += p.st.sets; vol += p.st.vol; }
+      const a = inb[0].st, b = inb[inb.length - 1].st, w = a.w || b.w;
+      const diff = w ? b.top.kg - a.top.kg : b.reps - a.reps, base = w ? a.top.kg : a.reps;
+      lifts.push({ e, a, b, w, diff, pct: base > 0 ? Math.round(diff / base * 100) : 0, n: inb.length, first: inb[0].d, last: inb[inb.length - 1].d });
+    }
+    lifts.sort((x, y) => (y.n > 1) - (x.n > 1) || y.pct - x.pct);
+    return { D, from, now, lifts, sessions: days.size, sets, vol, prs };
+  }
+  const tonnes = (v) => (v >= 1000 ? (Math.round(v / 100) / 10) + ' t' : Math.round(v) + ' kg');
+  function paintProgress() {
+    const R = report();
+    for (const x of document.querySelectorAll('#pg-blk button')) x.setAttribute('aria-pressed', String(+x.dataset.w === blk));
+    $('#pg-range').textContent = R.from ? 'From ' + nice(R.from) + ' to ' + nice(R.now) + '.' : 'Everything you have logged.';
+    const body = $('#pg-body');
+    if (!R.lifts.length) { body.innerHTML = '<p class="pg-empty">Nothing logged in this time yet. Open any move, fill in your sets and tick them. Your progress shows up here.</p>'; $('#pg-acts').hidden = true; return; }
+    $('#pg-acts').hidden = false;
+    body.innerHTML = '<div class="pg-tiles"><div class="pg-tile"><b>' + R.sessions + '</b><span>Training days</span></div><div class="pg-tile"><b>' + R.sets + '</b><span>Sets done</span></div><div class="pg-tile"><b>' + tonnes(R.vol) + '</b><span>Total lifted</span></div><div class="pg-tile"><b>' + R.prs + '</b><span>New PRs</span></div></div>' +
+      '<div><p class="lbl" style="margin:12px 0 8px">Start and now</p><ul class="pg-lifts">' + R.lifts.map((l) => '<li><button type="button" data-go="' + l.e.slug + '"><span class="nm2">' + l.e.name + '</span><span class="ch' + (l.diff > 0 ? ' up' : '') + '">' + (l.n > 1 ? (l.diff > 0 ? '+' : '') + kgs(l.diff) + (l.w ? ' kg' : ' reps') + (l.pct ? ' (' + (l.pct > 0 ? '+' : '') + l.pct + '%)' : '') : 'First log') + '</span><span class="sub2">' + nice(l.first) + ': ' + fmtTop(l.a) + (l.n > 1 ? '   ›   ' + nice(l.last) + ': ' + fmtTop(l.b) : '') + '</span></button></li>').join('') + '</ul></div>';
+    for (const b of body.querySelectorAll('[data-go]')) b.addEventListener('click', () => { closeProgress(true); api.openMove(b.dataset.go); });
+    $('#pg-wa').href = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(text(R));
+  }
+  function text(R) {
+    const who = R.D.name ? R.D.name + "'s" : 'My';
+    const lines = [who + ' training report, ' + (blk ? blk + ' weeks' : 'all time') + ' (' + (R.from ? nice(R.from) + ' to ' : '') + nice(R.now) + ')', '',
+      R.sessions + ' training days, ' + R.sets + ' sets, ' + tonnes(R.vol) + ' lifted, ' + R.prs + ' new PRs', ''];
+    for (const l of R.lifts.filter((x) => x.n > 1).slice(0, 12)) lines.push(l.e.name + ': ' + fmtTop(l.a) + ' › ' + fmtTop(l.b) + ' (' + (l.diff > 0 ? '+' : '') + kgs(l.diff) + (l.w ? ' kg' : ' reps') + ')');
+    return lines.join('\n');
+  }
+  async function shareImage() {
+    try { await Promise.all(['700 96px "Barlow Condensed"', '600 34px "Barlow Condensed"', '400 34px Barlow', '600 36px Barlow'].map((f) => document.fonts.load(f))); } catch (e) {}
+    const R = report(), cv = document.createElement('canvas'), W = 1080, Hh = 1350; cv.width = W; cv.height = Hh;
+    const c = cv.getContext('2d'), D2 = '"Barlow Condensed", "Arial Narrow", sans-serif', B2 = 'Barlow, Arial, sans-serif';
+    c.fillStyle = '#0D1114'; c.fillRect(0, 0, W, Hh);
+    c.fillStyle = '#FF6A50'; c.font = '600 34px ' + D2; c.fillText('PETRO PERSONAL TRAINING', 80, 120);
+    c.fillStyle = '#EDF1F3'; c.font = '700 96px ' + D2; c.fillText((R.D.name ? R.D.name.toUpperCase() + "'S " : '') + (blk ? blk + ' WEEKS' : 'PROGRESS'), 80, 220);
+    c.fillStyle = '#9AA6AF'; c.font = '400 34px ' + B2; c.fillText((R.from ? nice(R.from) + ' to ' : 'Up to ') + nice(R.now), 80, 280);
+    const tiles = [[R.sessions, 'Training days'], [R.sets, 'Sets done'], [tonnes(R.vol), 'Total lifted'], [R.prs, 'New PRs']];
+    tiles.forEach(([v, l], i) => { const x = 80 + i * 235; c.fillStyle = '#151B1F'; c.fillRect(x, 330, 215, 150); c.fillStyle = '#EDF1F3'; c.font = '700 64px ' + D2; c.fillText(String(v), x + 22, 410); c.fillStyle = '#9AA6AF'; c.font = '400 26px ' + B2; c.fillText(l, x + 22, 455); });
+    let y = 560; c.fillStyle = '#9AA6AF'; c.font = '600 30px ' + D2; c.fillText('START  ›  NOW', 80, y); y += 30;
+    for (const l of R.lifts.filter((x) => x.n > 1).slice(0, 7)) {
+      y += 88; c.fillStyle = '#263139'; c.fillRect(80, y - 62, W - 160, 2);
+      c.fillStyle = '#EDF1F3'; c.font = '600 36px ' + B2; c.fillText(l.e.name, 80, y - 16);
+      c.fillStyle = '#9AA6AF'; c.font = '400 28px ' + B2; c.fillText(fmtTop(l.a) + '  ›  ' + fmtTop(l.b), 80, y + 20);
+      c.fillStyle = l.diff > 0 ? '#4ED37F' : '#EDF1F3'; c.font = '700 52px ' + D2; c.textAlign = 'right'; c.fillText((l.diff > 0 ? '+' : '') + kgs(l.diff) + (l.w ? ' kg' : ' reps'), W - 80, y + 6); c.textAlign = 'left';
+    }
+    c.fillStyle = '#9AA6AF'; c.font = '400 28px ' + B2; c.fillText('Coach Josh, Petro Personal Training', 80, Hh - 70);
+    cv.toBlob(async (blob) => {
+      const name = 'petro-progress-' + R.now + '.png', file = new File([blob], name, { type: 'image/png' });
+      try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'My training report' }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    }, 'image/png');
+  }
+  function backup() {
+    const blob = new Blob([JSON.stringify(load(), null, 1)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'petro-training-log-' + dayOf() + '.json'; document.body.appendChild(a); a.click(); a.remove();
+    $('#pg-msg').textContent = 'Backup saved to your downloads.';
+  }
+  function restore(ev) {
+    const f = ev.target.files && ev.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      let inc; try { inc = JSON.parse(rd.result); } catch (e) { inc = null; }
+      if (!inc || typeof inc.log !== 'object' || Array.isArray(inc.log)) { $('#pg-msg').textContent = 'That file is not a Petro training log backup.'; return; }
+      const D = load(); let n = 0;
+      for (const id of Object.keys(inc.log)) { const days = inc.log[id]; if (!days || typeof days !== 'object') continue; D.log[id] = D.log[id] || {}; for (const d of Object.keys(days)) if (/^\d{4}-\d\d-\d\d$/.test(d) && days[d] && Array.isArray(days[d].sets)) { D.log[id][d] = days[d]; n++; } }
+      Object.assign(D.target, inc.target || {}); if (!D.name && inc.name) D.name = inc.name;
+      store(D); $('#pg-msg').textContent = 'Restored ' + n + (n === 1 ? ' session.' : ' sessions.'); paintProgress(); ev.target.value = '';
+    };
+    rd.readAsText(f);
+  }
+  let pgOpener = null;
+  function openProgress() {
+    const sh = $('#pg'); if (!sh.hidden) { paintProgress(); return; }
+    pgOpener = document.activeElement; $('#pg-name').value = load().name || ''; paintProgress();
+    sh.hidden = false; document.documentElement.classList.add('locked'); setTimeout(() => $('#pg-x').focus(), 30);
+  }
+  function closeProgress(keepHash) {
+    const sh = $('#pg'); if (sh.hidden) return; sh.hidden = true; document.documentElement.classList.remove('locked');
+    if (!keepHash && location.hash === '#progress') { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+    if (pgOpener && pgOpener.focus) pgOpener.focus();
+  }
+
+  G.PetroLog = { init(a) { api = a; build(); }, open, stop: () => rest(0), openProgress, closeProgress, isOpen: () => !$('#pg').hidden, _load: load, _store: store };
+})(window);
+
 (function () {
   const EX = window.EXERCISES;
   const CATS = {
@@ -5464,6 +5861,7 @@ PETRO_ROUTINE({
     $('#d-dose-s .lbl').textContent = ex.session ? 'Effort' : 'Typical dose';
     $('#d-swap-s .lbl').textContent = ex.session ? 'No machine?' : 'If you have no kit';
     PetroSession.open(ex, opt);
+    PetroLog.open(ex);
     $('#sheet .panel').classList.toggle('flow', !!(ex.session && ex.session.options.some((o) => o.type === 'flow')));
     const moveName = /^[A-Z][a-z]/.test(ex.name) ? ex.name.charAt(0).toLowerCase() + ex.name.slice(1) : ex.name;
     $('#d-wa').href = 'https://wa.me/27635028839?text=' + encodeURIComponent('Hi Josh, I have a question about the ' + moveName + '.');
@@ -5495,6 +5893,7 @@ PETRO_ROUTINE({
     if (sheet.hidden) return;
     sheet.hidden = true;
     PetroSession.stop();
+    PetroLog.stop();
     document.documentElement.classList.remove('locked');
     if (location.hash) { try { history.replaceState(null, '', CAT_HASH[state.cat] || location.pathname + location.search); } catch (e) { location.hash = ''; } }
     if (opener && opener.focus) opener.focus();
@@ -5508,7 +5907,7 @@ PETRO_ROUTINE({
   function sheetEvents() {
     $('#d-close').addEventListener('click', closeDetail);
     $('#sheet').addEventListener('click', (e) => { if (e.target.id === 'sheet') closeDetail(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDetail(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (PetroLog.isOpen()) PetroLog.closeProgress(); else closeDetail(); } });
     $('#d-play').addEventListener('click', () => { detail.pl.playing = !detail.pl.playing; detail.pl.last = null; syncButtons(); });
     $('#d-slow').addEventListener('click', () => { detail.pl.speed = detail.pl.speed < 1 ? 1 : 0.45; if (!detail.pl.playing) { detail.pl.playing = true; detail.pl.last = null; } syncButtons(); });
   }
@@ -5526,6 +5925,8 @@ PETRO_ROUTINE({
   /* ---------- routing ---------- */
   function route() {
     const h = (location.hash || '').replace('#', '');
+    if (h === 'progress') { closeDetail(); PetroLog.openProgress(); return; }
+    if (PetroLog.isOpen()) PetroLog.closeProgress(true);
     if (bySlug[h]) { setCat(catOf(bySlug[h])); openDetail(bySlug[h], false); return; }
     const cut = h.lastIndexOf('-'), hs = h.slice(0, cut), ho = h.slice(cut + 1);
     if (cut > 0 && bySlug[hs]) { if (detail && detail.ex === bySlug[hs] && !detail.sheet.hidden) return; setCat(catOf(bySlug[hs])); openDetail(bySlug[hs], false, ho); return; }
@@ -5538,7 +5939,8 @@ PETRO_ROUTINE({
   }
 
   /* ---------- boot ---------- */
-  build(); controls(); sheetEvents(); PetroSession.boot(); applyFilters(); observe();
+  build(); controls(); sheetEvents(); PetroSession.boot();
+  PetroLog.init({ byId: (id) => bySlug[slug(id)], openMove: (sl) => { try { location.hash = sl; } catch (e) { openDetail(bySlug[sl], true); } } }); applyFilters(); observe();
   window.addEventListener('resize', () => { for (const c of cards) { c.sized = false; if (c.visible && !c.el.hidden) paint(c); } if (detail && !detail.sheet.hidden) { sizeCanvas($('#d-cv'), DPR); detail.pl.render(); } });
   window.addEventListener('hashchange', route);
   route();
