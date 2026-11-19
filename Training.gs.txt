@@ -1,0 +1,187 @@
+/**
+ * Petro Training: connects the Petro Exercise Library to the Petro CRM.
+ *
+ * Run setup once. It adds the client columns, and the Program, Week plan,
+ * Warm ups and Workouts tabs. It never deletes or overwrites anything you
+ * already have. Then deploy as a web app (Execute as: Me, Who has access: Anyone).
+ */
+
+const CRM_ID = '1cJbozSNBWiR_SzwbX8oksFYvJOmfjvj-lJJOkVaadGY';
+const LIBRARY = 'https://petro-pt-library.netlify.app/?c=';
+const NEW_COLS = ['Code', 'Track', 'Schedule', 'Level', 'Block start', 'Training link'];
+const WORKOUT_HEAD = ['Submitted', 'Client', 'Code', 'Date', 'Week', 'Day', 'Session', 'Order', 'Move', 'Set', 'Kg', 'Reps', 'RPE', 'Note', 'Id'];
+const PROGRAM_HEAD = ['Track', 'Day', 'Session', 'Order', 'Move', 'Swap if busy', 'Sets', 'Beginner sets', 'Reps', 'Rest', 'Notes'];
+const WEEK_HEAD = ['Week', 'Focus', 'Main lift reps', 'Effort (RPE)', 'Beginners', 'What the client is told'];
+const WARM_HEAD = ['Day type', 'Part', 'Order', 'Move', 'Time'];
+const SEED = 'https://petro-pt-library.netlify.app/program-seed.json';
+
+/* ---------- one time setup ---------- */
+function setup() {
+  const ss = SpreadsheetApp.openById(CRM_ID);
+  const DATA = JSON.parse(UrlFetchApp.fetch(SEED).getContentText());
+  const done = [];
+
+  // Clients: add the training columns at the end if they are missing
+  const cl = ss.getSheetByName('Clients');
+  if (!cl) throw new Error('No Clients tab found');
+  const head = cl.getRange(1, 1, 1, cl.getLastColumn()).getValues()[0].map(String);
+  let col = head.length;
+  for (const h of NEW_COLS) {
+    if (head.indexOf(h) === -1) { col++; cl.getRange(1, col).setValue(h); head.push(h); done.push('Clients column ' + h); }
+  }
+  const c = (h) => head.indexOf(h) + 1;
+  const rows = Math.max(cl.getMaxRows() - 1, 1);
+  const dd = (h, list) => cl.getRange(2, c(h), rows, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(list, true).setAllowInvalid(true).build());
+  dd('Track', ['Men', 'Women']);
+  dd('Schedule', ['Sun to Thu', 'Mon to Fri']);
+  dd('Level', ['Standard', 'Beginner']);
+  cl.getRange(2, c('Block start'), rows, 1).setNumberFormat('d mmm yyyy');
+
+  // Training link builds itself from the code
+  const code = cl.getRange(1, c('Code')).getA1Notation().replace(/\d+/g, '');
+  cl.getRange(2, c('Training link')).setFormula('=ARRAYFORMULA(IF(' + code + '2:' + code + '="","","' + LIBRARY + '"&' + code + '2:' + code + '))');
+
+  // Give every existing client a code, keep any code already there
+  const last = cl.getLastRow();
+  if (last > 1) {
+    const names = cl.getRange(2, c('Client'), last - 1, 1).getValues();
+    const codes = cl.getRange(2, c('Code'), last - 1, 1).getValues();
+    const levels = cl.getRange(2, c('Level'), last - 1, 1).getValues();
+    const used = new Set(codes.map((r) => String(r[0]).trim().toUpperCase()).filter(Boolean));
+    let made = 0;
+    for (let i = 0; i < names.length; i++) {
+      const n = String(names[i][0]).trim();
+      if (!n) continue;
+      if (!String(codes[i][0]).trim()) { codes[i][0] = newCode(n, used); used.add(codes[i][0]); made++; }
+      if (!String(levels[i][0]).trim()) levels[i][0] = 'Standard';
+    }
+    cl.getRange(2, c('Code'), last - 1, 1).setValues(codes);
+    cl.getRange(2, c('Level'), last - 1, 1).setValues(levels);
+    if (made) done.push(made + ' client codes made');
+  }
+
+  // New tabs, only when they do not exist yet, so your edits are never replaced
+  done.push(tab(ss, 'Program', PROGRAM_HEAD, DATA.program, (sh) => {
+    sh.getRange(2, 1, sh.getMaxRows() - 1, 1).setDataValidation(
+      SpreadsheetApp.newDataValidation().requireValueInList(['Men', 'Women', 'Both'], true).build());
+  }));
+  done.push(tab(ss, 'Week plan', WEEK_HEAD, DATA.week));
+  done.push(tab(ss, 'Warm ups', WARM_HEAD, DATA.warm));
+  done.push(tab(ss, 'Workouts', WORKOUT_HEAD, []));
+
+  Logger.log(done.filter(Boolean).join('\n') || 'Everything was already set up');
+}
+
+function tab(ss, name, head, rows, extra) {
+  if (ss.getSheetByName(name)) return '';
+  const sh = ss.insertSheet(name);
+  sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
+  if (rows.length) sh.getRange(2, 1, rows.length, head.length).setValues(rows);
+  sh.setFrozenRows(1);
+  if (extra) extra(sh);
+  sh.autoResizeColumns(1, head.length);
+  return 'Made the ' + name + ' tab';
+}
+
+function newCode(name, used) {
+  const base = (name.split(/\s+/)[0] || 'CLIENT').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 10) || 'CLIENT';
+  for (let n = 1; n < 100; n++) { const k = base + (n < 10 ? '0' : '') + n; if (!used.has(k)) return k; }
+  return base + Date.now() % 1000;
+}
+
+/* ---------- web app ---------- */
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  if (p.action === 'client') return json(client(p.c));
+  return json({ ok: true, app: 'Petro Training' });
+}
+
+function doPost(e) {
+  let body;
+  try { body = JSON.parse(e.postData.contents); } catch (err) { return json({ ok: false, error: 'Bad data' }); }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { return json(save(body)); } finally { lock.releaseLock(); }
+}
+
+function json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+
+const TESTS = { TEST01: { name: 'Test client', track: 'Men' }, TEST02: { name: 'Test client', track: 'Women' } };
+
+function findClient(code) {
+  const k = String(code || '').trim().toUpperCase();
+  if (!k) return null;
+  if (TESTS[k]) {
+    const d = new Date(); d.setDate(d.getDate() - d.getDay()); // this Sunday, so a test is always week 1
+    return Object.assign({ code: k, schedule: 'Sun to Thu', level: 'Standard', start: d }, TESTS[k]);
+  }
+  const cl = SpreadsheetApp.openById(CRM_ID).getSheetByName('Clients');
+  const v = cl.getDataRange().getValues(), h = v[0].map(String), c = (x) => h.indexOf(x);
+  for (let i = 1; i < v.length; i++) {
+    if (String(v[i][c('Code')]).trim().toUpperCase() !== k) continue;
+    const r = v[i];
+    return {
+      code: k, name: String(r[c('Client')]).trim(),
+      track: /^w|^f/i.test(String(r[c('Track')])) ? 'Women' : /^m/i.test(String(r[c('Track')])) ? 'Men' : '',
+      schedule: /mon/i.test(String(r[c('Schedule')])) ? 'Mon to Fri' : 'Sun to Thu',
+      level: /beg/i.test(String(r[c('Level')])) ? 'Beginner' : 'Standard',
+      start: r[c('Block start')] || r[c('Start date')] || '',
+    };
+  }
+  return null;
+}
+
+function day(d) {
+  if (!(d instanceof Date)) { const t = new Date(d); if (isNaN(t)) return ''; d = t; }
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function rowsOf(name, width) {
+  const sh = SpreadsheetApp.openById(CRM_ID).getSheetByName(name);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, width).getValues().filter((r) => r.some((x) => x !== ''));
+}
+
+function client(code) {
+  const cl = findClient(code);
+  if (!cl) return { ok: false, error: 'not found' };
+  const track = cl.track;
+  const program = rowsOf('Program', PROGRAM_HEAD.length)
+    .filter((r) => !track || r[0] === track || r[0] === 'Both')
+    .map((r) => ({ track: r[0], day: String(r[1]), session: String(r[2]), order: String(r[3]), move: String(r[4]).trim(), swap: String(r[5]).trim(),
+      sets: String(r[6]), bsets: String(r[7]), reps: String(r[8]), rest: String(r[9]), note: String(r[10]) }));
+  const weeks = rowsOf('Week plan', WEEK_HEAD.length).filter((r) => +r[0] > 0)
+    .map((r) => ({ week: +r[0], focus: String(r[1]), reps: String(r[2]), rpe: String(r[3]), beg: String(r[4]), tell: String(r[5]) }));
+  const warm = rowsOf('Warm ups', WARM_HEAD.length).map((r) => ({ type: String(r[0]), part: String(r[1]), order: +r[2] || 0, move: String(r[3]).trim(), time: String(r[4]) }));
+  return {
+    ok: true, code: cl.code, first: cl.name.split(/\s+/)[0], track: track, schedule: cl.schedule, level: cl.level,
+    start: day(cl.start), program: program, weeks: weeks, warm: warm, at: new Date().toISOString(),
+  };
+}
+
+function save(b) {
+  const cl = findClient(b && b.code);
+  if (!cl) return { ok: false, error: 'not found' };
+  const id = String(b.id || '').slice(0, 60);
+  const sh = SpreadsheetApp.openById(CRM_ID).getSheetByName('Workouts');
+  if (!sh) return { ok: false, error: 'Run setup first' };
+  const last = sh.getLastRow();
+  if (id && last > 1) {
+    const from = Math.max(2, last - 1500);
+    const ids = sh.getRange(from, 15, last - from + 1, 1).getValues();
+    if (ids.some((r) => r[0] === id)) return { ok: true, dup: true };
+  }
+  const now = new Date(), s = (x, n) => String(x == null ? '' : x).slice(0, n || 200);
+  const out = [];
+  for (const it of (b.items || []).slice(0, 60)) {
+    const sets = (it.sets || []).slice(0, 12);
+    if (!sets.length) { out.push([now, cl.name, cl.code, s(b.date, 10), b.week || '', s(b.day, 40), s(b.session, 80), s(it.order, 12), s(it.move, 80), '', '', it.done ? 'Done' : 'Skipped', '', s(it.note, 300), id]); continue; }
+    sets.forEach((x, i) => out.push([now, cl.name, cl.code, s(b.date, 10), b.week || '', s(b.day, 40), s(b.session, 80), s(it.order, 12), s(it.move, 80), i + 1,
+      +x.kg > 0 ? +x.kg : '', +x.reps > 0 ? +x.reps : '', s(x.rpe, 4), i === 0 ? s(it.note, 300) : '', id]));
+  }
+  if (b.note) out.push([now, cl.name, cl.code, s(b.date, 10), b.week || '', s(b.day, 40), s(b.session, 80), '', 'Workout note', '', '', '', '', s(b.note, 500), id]);
+  if (!out.length) return { ok: false, error: 'Nothing logged' };
+  sh.getRange(last + 1, 1, out.length, WORKOUT_HEAD.length).setValues(out);
+  return { ok: true, rows: out.length };
+}

@@ -210,6 +210,7 @@ footer .ask { display: grid; gap: 10px; margin-block: 6px 4px; }
   <div class="legend"><span><i class="sw p1"></i>Primary muscle</span><span><i class="sw p2"></i>Secondary muscle</span></div>
   <div class="shown" id="shown"></div>
 </header>
+<section class="wrap" id="today" hidden aria-label="Your training"></section>
 
 <div class="bar">
   <div class="wrap">
@@ -5257,6 +5258,8 @@ PETRO_ROUTINE({
   .lg-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
   .lg-date { font-size: 14px; color: var(--muted); }
   .lg-last, .lg-tip { margin: 0; font-size: 15px; }
+  .lg-plan { margin: 0; font-size: 15px; font-weight: 700; }
+  .lg-plan[hidden] { display: none; }
   .lg-tip { padding: 10px 12px; border-radius: 10px; background: var(--b); color: var(--b-ink); font-weight: 600; }
   .lg-tip[hidden] { display: none; }
   .lg-hd, .lg-row { display: grid; grid-template-columns: 22px minmax(0, 1.9fr) minmax(0, 1fr) minmax(0, 1fr) 44px; gap: 6px; align-items: center; }
@@ -5333,7 +5336,7 @@ PETRO_ROUTINE({
     const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
     const sec = document.createElement('section'); sec.id = 'lg'; sec.hidden = true;
     sec.innerHTML = '<div class="lg-top"><p class="lbl">Log your sets</p><span class="lg-date" id="lg-date"></span></div>' +
-      '<p class="lg-last" id="lg-last"></p><p class="lg-tip" id="lg-tip" hidden></p>' +
+      '<p class="lg-plan" id="lg-plan" hidden></p><p class="lg-last" id="lg-last"></p><p class="lg-tip" id="lg-tip" hidden></p>' +
       '<div class="lg-hd" aria-hidden="true"><span>#</span><span style="text-align:center">kg</span><span>Reps</span><span>RPE</span><span></span></div>' +
       '<div class="lg-rows" id="lg-rows"></div>' +
       '<div class="lg-rest" id="lg-rest" hidden aria-live="polite"><span>Rest</span><b id="lg-restc">1:30</b><button type="button" id="lg-rest15">+15 s</button><button type="button" id="lg-restx">Skip</button></div>' +
@@ -5388,8 +5391,15 @@ PETRO_ROUTINE({
     $('#lg-lo').value = lo; $('#lg-hi').value = hi;
     $('#lg-last').textContent = sg.last ? 'Last time, ' + nice(sg.lastDate) + ': ' + line(sg.last) : 'First time logging this move. Start with a weight you can do for ' + hi + ' clean reps.';
     $('#lg-tip').hidden = !sg.tip || !!cur; $('#lg-tip').textContent = sg.tip || '';
+    const pl = G.PetroToday ? G.PetroToday.planFor(e) : null;
+    $('#lg-plan').hidden = !pl; $('#lg-plan').textContent = pl ? pl.text : '';
+    if (pl && !sg.last) $('#lg-last').textContent = 'First time logging this move. Pick a weight you can lift for the planned reps with clean form.';
     if (!keep) {
       rows = cur ? cur.sets.map((s) => Object.assign({}, s)) : sg.sets ? sg.sets : [0, 1, 2].map(() => ({ kg: '', reps: '', rpe: '', done: false }));
+      if (!cur && pl && pl.sets > 0) {
+        while (rows.length < pl.sets) rows.push(Object.assign({}, rows[rows.length - 1] || { kg: '', reps: '', rpe: '' }, { done: false }));
+        rows = rows.slice(0, pl.sets).map((r, i) => Object.assign({}, r, { reps: pl.reps[i] || r.reps }));
+      }
       $('#lg-note').value = cur ? cur.note || '' : '';
     }
     draw(); histView();
@@ -5613,6 +5623,271 @@ PETRO_ROUTINE({
   }
 
   G.PetroLog = { init(a) { api = a; build(); }, open, stop: () => rest(0), openProgress, closeProgress, isOpen: () => !$('#pg').hidden, _load: load, _store: store };
+})(window);
+
+/* ---------- today: a client's own session from the Petro CRM program ---------- */
+(function (G) {
+  const API = 'https://script.google.com/macros/s/AKfycbx9YNMGULBYODtpGm8qUaEXdWGboKLBBWg_6Ek4VkbJo_XKs7rwATEMEMGxHgybTmOOTg/exec';
+  const CK = 'petro-client', OK = 'petro-outbox', SK = 'petro-today';
+  const $ = (s) => document.querySelector(s);
+  const get = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+  const put = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const pad = (n) => String(n).padStart(2, '0');
+  const dayOf = (t) => { const n = t || new Date(); return n.getFullYear() + '-' + pad(n.getMonth() + 1) + '-' + pad(n.getDate()); };
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const DAYS = { 'Sun to Thu': ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'], 'Mon to Fri': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] };
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>';
+  let api = null, C = null, sel = 0, status = '';
+
+  const css = `
+  #today { margin: 18px 0 8px; display: grid; gap: 14px; }
+  #today[hidden] { display: none; }
+  .td-head { display: grid; gap: 4px; }
+  .td-head h2 { margin: 0; font-family: var(--display); font-size: 34px; line-height: 1.05; }
+  .td-wk { margin: 0; font-weight: 600; }
+  .td-tell { margin: 0; color: var(--muted); }
+  .td-days { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+  .td-days button { flex: 0 0 auto; min-width: 62px; height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; display: grid; place-items: center; line-height: 1.1; padding: 4px 8px; font: inherit; }
+  .td-days button b { font-family: var(--display); font-size: 17px; }
+  .td-days button small { font-size: 12px; color: var(--muted); }
+  .td-days button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .td-days button[aria-pressed="true"] small { color: var(--bg); }
+  .td-box { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 14px; display: grid; gap: 10px; min-width: 0; }
+  .td-box h3 { margin: 0; font-family: var(--display); font-size: 20px; letter-spacing: 0.02em; }
+  .td-rest { margin: 0; }
+  .td-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .td-chips button { height: 38px; padding: 0 12px; border-radius: 19px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: 15px; cursor: pointer; }
+  .td-chips button.go { background: var(--b); color: var(--b-ink); border-color: transparent; font-weight: 600; }
+  .td-grp { display: grid; gap: 8px; }
+  .td-grp > p { margin: 0; font-family: var(--display); font-weight: 700; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .td-mv { display: grid; grid-template-columns: 46px minmax(0, 1fr) 48px; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--bg); }
+  .td-mv.on { border-color: var(--b-ink); background: var(--b); color: var(--b-ink); }
+  .td-ord { font-family: var(--display); font-weight: 700; font-size: 20px; text-align: center; }
+  .td-main { min-width: 0; display: grid; gap: 2px; }
+  .td-main button.nm { all: unset; cursor: pointer; font-weight: 700; font-size: 17px; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  .td-main button.nm:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .td-main span.nm { font-weight: 700; font-size: 17px; }
+  .td-pre { font-size: 15px; }
+  .td-sub { font-size: 14px; color: var(--muted); }
+  .td-mv.on .td-sub { color: inherit; }
+  .td-swap { all: unset; cursor: pointer; font-size: 14px; color: var(--accent); font-weight: 600; justify-self: start; padding: 4px 0; }
+  .td-swap:focus-visible { outline: 2px solid var(--accent); }
+  .td-tick { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; display: grid; place-items: center; padding: 0; }
+  .td-tick svg { width: 22px; height: 22px; }
+  .td-mv.on .td-tick { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .td-n { font-family: var(--display); font-weight: 700; font-size: 16px; text-align: center; }
+  .td-fin textarea { width: 100%; box-sizing: border-box; min-height: 64px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; padding: 10px; }
+  .td-send { height: 52px; border-radius: 12px; border: none; background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 700; font-size: 18px; cursor: pointer; }
+  .td-send:disabled { opacity: 0.55; cursor: default; }
+  .td-msg { margin: 0; font-weight: 600; }
+  .td-foot { margin: 0; font-size: 14px; color: var(--muted); }
+  .td-foot button { all: unset; cursor: pointer; text-decoration: underline; color: var(--ink); }
+  `;
+
+  /* ---------- the block maths ---------- */
+  function weekNow() {
+    if (!C || !C.start) return { week: 1, block: 1, wk: 1 };
+    const [y, m, d] = C.start.split('-').map(Number), s = new Date(y, m - 1, d), t = new Date();
+    t.setHours(0, 0, 0, 0);
+    const days = Math.floor((t - s) / 864e5), week = days < 0 ? 1 : Math.floor(days / 7) + 1;
+    return { week, block: Math.ceil(week / 8), wk: ((week - 1) % 8) + 1 };
+  }
+  const labels = () => DAYS[C.schedule] || DAYS['Sun to Thu'];
+  function todayNum() { const i = labels().indexOf(DOW[new Date().getDay()]); return i + 1; }
+  const dayNum = (r) => { const m = /day\s*(\d+)/i.exec(r.day); return m ? +m[1] : /every/i.test(r.day) ? -1 : 0; };
+  const rowsFor = (n) => C.program.filter((r) => dayNum(r) === n);
+  const daily = () => C.program.filter((r) => dayNum(r) === -1);
+  const dayCount = () => Math.max(5, ...C.program.map(dayNum));
+  const timed = (r) => /\d\s*(s|min|sec)\b|\bon\b|round/i.test(r.reps + ' ' + r.sets);
+  const key = (r) => sel + '|' + r.order + '|' + r.move;
+
+  function weekRow() { const w = weekNow(); return (C.weeks || []).find((x) => x.week === w.wk) || null; }
+
+  // what the client actually does on this row this week
+  function prescribe(r) {
+    const beg = C.level === 'Beginner', wr = weekRow(), deload = !!wr && /deload/i.test(wr.focus);
+    const raw = String((beg && r.bsets) || r.sets).trim();
+    let sets = parseInt(raw, 10), reps = r.reps, list = null, extra = '', rpe = '';
+    if (/week plan/i.test(r.reps) && wr) {
+      const src = String((beg && wr.beg) || wr.reps);
+      const m = /(\d+)\s*sets?\s+of\s+(\d+(?:\s*to\s*\d+)?)(.*)$/i.exec(src);
+      if (m) { sets = +m[1]; reps = m[2]; extra = m[3].replace(/^[\s,]+/, '').trim(); }
+      else if (/,/.test(src)) { list = src.split(',').map((x) => x.trim()).filter(Boolean); reps = list.join(', '); }
+      else reps = src.replace(/every set/i, '').trim();
+      rpe = wr.rpe;
+    } else if (/week plan/i.test(r.reps)) reps = '10 to 12';
+    if (deload && !/week plan/i.test(r.reps) && sets > 2 && !timed(r)) sets = 2;
+    if (list && sets > 0) { while (list.length < sets) list.push(list[list.length - 1]); list = list.slice(0, sets); reps = list.join(', '); }
+    const n = isFinite(sets) && sets > 0 ? sets : 0;
+    let text;
+    if (timed(r)) text = (raw && raw !== '1' ? raw + ', ' : '') + r.reps;
+    else if (list) text = n + ' sets: ' + reps + ' reps';
+    else text = (n ? n + ' sets of ' : '') + reps + (/\d$/.test(reps) ? ' reps' : '');
+    if (extra) text += ', ' + extra;
+    if (rpe) text += ', RPE ' + rpe;
+    const nums = (list || Array(n).fill(reps)).map((x) => parseInt(x, 10) || '');
+    return { text, sets: n, reps: nums };
+  }
+
+  /* ---------- logged state ---------- */
+  const T = () => { const s = get(SK, {}); return s.date === dayOf() ? s : { date: dayOf(), ticks: {}, swaps: {}, note: '' }; };
+  const saveT = (s) => put(SK, s);
+  const curMove = (r) => (T().swaps[key(r)] && r.swap ? r.swap : r.move);
+  const exOf = (name) => (api && name ? api.byName(name) : null);
+  function setsOf(r) {
+    const ex = exOf(curMove(r)); if (!ex || !G.PetroLog) return [];
+    const en = ((G.PetroLog._load().log[ex.id] || {})[dayOf()]) || null;
+    return en ? (en.sets || []).filter((s) => s.done && s.reps > 0) : [];
+  }
+  const noteOf = (r) => { const ex = exOf(curMove(r)); if (!ex || !G.PetroLog) return ''; const en = (G.PetroLog._load().log[ex.id] || {})[dayOf()]; return (en && en.note) || ''; };
+  const isDone = (r) => !!T().ticks[key(r)] || setsOf(r).length > 0;
+
+  /* ---------- drawing ---------- */
+  function groupOf(r) {
+    if (/^core/i.test(r.order)) return 'Core finisher, back to back';
+    if (/^station/i.test(r.order)) return 'Circuit, 40 s on and 20 s off';
+    if (/^walk/i.test(r.order)) return 'Daily walk';
+    const m = /^([A-Z])\d*$/.exec(r.order.trim()); return m ? m[1] : r.order;
+  }
+  function dayType(rows) {
+    const s = rows.map((r) => r.session).join(' ');
+    return /lower|glute|leg/i.test(s) ? 'Lower body days' : /full|interval|circuit/i.test(s) ? 'Full body day' : 'Upper body days';
+  }
+  function chips(names, go) {
+    return '<div class="td-chips">' + (go ? '<button type="button" class="go" data-ex="' + esc(go[0]) + '">' + esc(go[1]) + '</button>' : '') +
+      names.map((n) => '<button type="button" data-ex="' + esc(n) + '">' + esc(n) + '</button>').join('') + '</div>';
+  }
+  function card(r) {
+    const name = curMove(r), ex = exOf(name), p = prescribe(r), n = setsOf(r).length, on = isDone(r), tm = timed(r);
+    const swapped = !!T().swaps[key(r)];
+    return '<div class="td-mv' + (on ? ' on' : '') + '" data-k="' + esc(key(r)) + '">' +
+      '<span class="td-ord">' + esc(/^(core|station|walk)/i.test(r.order) ? r.order.replace(/\D+/g, '') || '' : r.order) + '</span>' +
+      '<div class="td-main">' + (ex ? '<button type="button" class="nm" data-ex="' + esc(name) + '">' + esc(name) + '</button>' : '<span class="nm">' + esc(name) + '</span>') +
+      '<span class="td-pre">' + esc(p.text) + '</span>' +
+      (r.rest || r.note ? '<span class="td-sub">' + esc([r.rest ? 'Rest ' + r.rest : '', r.note].filter(Boolean).join('. ')) + '</span>' : '') +
+      (r.swap ? '<button type="button" class="td-swap" data-swap="1">' + (swapped ? 'Back to ' + esc(r.move) : 'Kit busy? Do ' + esc(r.swap)) + '</button>' : '') +
+      '</div>' +
+      (tm || !ex ? '<button type="button" class="td-tick" data-tick="1" aria-pressed="' + on + '" aria-label="' + esc(name) + ' done">' + TICK + '</button>'
+        : '<span class="td-n" aria-label="' + n + ' of ' + p.sets + ' sets logged">' + n + '/' + (p.sets || '?') + '</span>') +
+      '</div>';
+  }
+
+  function draw() {
+    const box = $('#today'); if (!box || !C) return;
+    const w = weekNow(), wr = weekRow(), tn = todayNum(), lab = labels(), N = dayCount();
+    const rows = sel > 0 ? rowsFor(sel) : [], s = T();
+    const dayBtns = Array.from({ length: N }, (_, i) => '<button type="button" data-day="' + (i + 1) + '" aria-pressed="' + (sel === i + 1) + '"><b>Day ' + (i + 1) + '</b><small>' + (tn === i + 1 ? 'Today' : lab[i] || '') + '</small></button>').join('');
+    let html = '<div class="td-head"><p class="brand">Your training</p><h2>' + (tn ? 'Hi ' + esc(C.first) + ', here\'s today' : 'Hi ' + esc(C.first) + ', rest day today') + '</h2>' +
+      '<p class="td-wk">Week ' + w.wk + ' of 8' + (w.block > 1 ? ', block ' + w.block : '') + (wr ? ', ' + esc(wr.focus) : '') + '</p>' +
+      (wr && wr.tell ? '<p class="td-tell">' + esc(wr.tell) + '</p>' : '') + '</div>' +
+      '<div class="td-days" role="group" aria-label="Training day">' + dayBtns + '</div>';
+    if (!rows.length) {
+      html += '<div class="td-box"><h3>Rest day</h3><p class="td-rest">No session today. Get your 30 minute incline walk in, then rest. Pick a day above if you missed a session.</p></div>';
+    } else {
+      const type = dayType(rows), wu = C.warm.filter((x) => x.type === type), part = (p) => wu.filter((x) => x.part === p).sort((a, b) => a.order - b.order).map((x) => x.move);
+      html += '<div class="td-box"><h3>' + esc(rows[0].session) + '</h3>';
+      html += '<div class="td-grp"><p>Warm up, 30 s each</p>' + chips(part('Warm up'), ['follow along warm up', 'Follow along']) + '</div>';
+      const groups = []; for (const r of rows) { const g = groupOf(r), last = groups[groups.length - 1]; if (last && last.g === g) last.rows.push(r); else groups.push({ g, rows: [r] }); }
+      for (const g of groups) { const h = g.g.length === 1 ? (g.rows.length > 1 ? 'Superset ' + g.g : '') : g.g; html += '<div class="td-grp">' + (h ? '<p>' + esc(h) + '</p>' : '') + g.rows.map(card).join('') + '</div>'; }
+      html += '<div class="td-grp"><p>Cool down, 30 s each</p>' + chips(part('Cool down'), ['follow along cool down', 'Follow along']) + '</div></div>';
+    }
+    const dl = daily(); if (dl.length) html += '<div class="td-box"><div class="td-grp"><p>Every day</p>' + dl.map(card).join('') + '</div></div>';
+    if (rows.length) {
+      const all = rows.concat(dl), done = all.filter(isDone).length;
+      html += '<div class="td-box td-fin"><h3>Finish workout</h3><p class="td-rest">' + done + ' of ' + all.length + ' done. Tap a move to watch the demo and log your sets.</p>' +
+        '<label class="lbl" for="td-note">Anything Josh should know?</label><textarea id="td-note" placeholder="How it felt, pain, kit you didn\'t have">' + esc(s.note || '') + '</textarea>' +
+        '<button type="button" class="td-send" id="td-send"' + (done ? '' : ' disabled') + '>' + (s.sent && s.sent[sel] ? 'Send update to Josh' : 'Finish and send to Josh') + '</button>' +
+        (status ? '<p class="td-msg" role="status">' + esc(status) + '</p>' : '<p class="td-msg" role="status"></p>') + '</div>';
+    }
+    html += '<p class="td-foot">Not ' + esc(C.first) + '? <button type="button" id="td-out">Open the plain library</button></p>';
+    box.innerHTML = html; box.hidden = false;
+    wire(box);
+  }
+
+  function wire(box) {
+    for (const b of box.querySelectorAll('[data-day]')) b.addEventListener('click', () => { sel = +b.dataset.day; status = ''; draw(); });
+    for (const b of box.querySelectorAll('[data-ex]')) b.addEventListener('click', () => { const ex = exOf(b.dataset.ex); if (ex) api.open(ex); });
+    const rowOf = (el) => { const k = el.closest('.td-mv').dataset.k; return rowsFor(sel).concat(daily()).find((r) => key(r) === k); };
+    for (const b of box.querySelectorAll('[data-tick]')) b.addEventListener('click', () => { const r = rowOf(b), s = T(); s.ticks[key(r)] = !s.ticks[key(r)]; saveT(s); draw(); });
+    for (const b of box.querySelectorAll('[data-swap]')) b.addEventListener('click', () => { const r = rowOf(b), s = T(); s.swaps[key(r)] = !s.swaps[key(r)]; saveT(s); draw(); });
+    const note = $('#td-note'); if (note) note.addEventListener('input', () => { const s = T(); s.note = note.value; saveT(s); });
+    const send = $('#td-send'); if (send) send.addEventListener('click', finish);
+    $('#td-out').addEventListener('click', () => { put(CK, null); try { localStorage.removeItem(CK); } catch (e) {} location.href = location.pathname; });
+  }
+
+  /* ---------- sending ---------- */
+  function finish() {
+    const rows = rowsFor(sel).concat(daily()), s = T(), w = weekNow();
+    const items = rows.map((r) => ({ order: r.order, move: curMove(r), sets: setsOf(r).map((x) => ({ kg: x.kg, reps: x.reps, rpe: x.rpe })), done: isDone(r), note: noteOf(r) }));
+    const p = { code: C.code, id: C.code + '-' + dayOf() + '-' + sel + '-' + Date.now().toString(36), date: dayOf(), week: w.week, day: 'Day ' + sel, session: (rowsFor(sel)[0] || {}).session || '', items, note: s.note || '' };
+    const box = get(OK, []); box.push(p); put(OK, box);
+    s.sent = s.sent || {}; s.sent[sel] = true; saveT(s);
+    status = 'Sending...'; draw(); flush(true);
+  }
+  let busy = false;
+  async function flush(show) {
+    if (busy) return; busy = true;
+    let box = get(OK, []), ok = 0, fail = 0;
+    for (const p of box.slice()) {
+      try {
+        const r = await fetch(API, { method: 'POST', body: JSON.stringify(p) }), j = await r.json();
+        if (j && j.ok) { ok++; box = get(OK, []).filter((x) => x.id !== p.id); put(OK, box); } else fail++;
+      } catch (e) { fail++; }
+    }
+    busy = false;
+    if (show) { status = fail ? 'Saved on your phone. It sends to Josh next time you open this page with signal.' : 'Sent to Josh. Good work today.'; draw(); }
+  }
+
+  /* ---------- loading ---------- */
+  async function load(code) {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 12000);
+    try {
+      const r = await fetch(API + '?action=client&c=' + encodeURIComponent(code), { signal: ctl.signal }), j = await r.json();
+      clearTimeout(t); return j;
+    } catch (e) { clearTimeout(t); return null; }
+  }
+  function show(data) {
+    C = data; put(CK, data);
+    if (!sel) sel = todayNum() || 0;
+    const lede = $('#lede'); if (lede) lede.textContent = 'Your session is below. Tap a move to watch the demo and log your sets.';
+    draw();
+  }
+  async function start() {
+    if (!API || API.indexOf('__') === 0) return;
+    const q = new URLSearchParams(location.search).get('c'), saved = get(CK, null);
+    const code = (q || (saved && saved.code) || '').trim().toUpperCase();
+    if (!code) return;
+    if (saved && saved.code === code && saved.ok) show(saved);
+    const fresh = await load(code);
+    if (fresh && fresh.ok) { const keep = sel; show(fresh); if (keep) { sel = keep; draw(); } }
+    else if (fresh && fresh.error === 'not found' && !(saved && saved.code === code)) {
+      const box = $('#today'); box.hidden = false;
+      box.innerHTML = '<div class="td-box"><h3>Code not found</h3><p class="td-rest">We could not find the code ' + esc(code) + '. Check the link Josh sent you, or message him on WhatsApp. The full library is below.</p></div>';
+    }
+    flush(false);
+  }
+
+  /* ---------- the logger asks what today's plan is for a move ---------- */
+  function planFor(ex) {
+    if (!C || !ex || !sel) return null;
+    const r = rowsFor(sel).find((x) => { const e = exOf(curMove(x)); return e && e.id === ex.id; });
+    if (!r || timed(r)) return null;
+    const p = prescribe(r);
+    return { text: 'Your plan today: ' + p.text + (r.rest ? '. Rest ' + r.rest : '') + '.', sets: p.sets, reps: p.reps };
+  }
+
+  G.PetroToday = {
+    init(a) {
+      api = a;
+      const st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+      window.addEventListener('hashchange', () => { if (C && !location.hash) draw(); });
+      window.addEventListener('online', () => flush(false));
+      start();
+    },
+    planFor, refresh: () => C && draw(),
+    _set(d) { show(d); }, _prescribe: (r) => prescribe(r),
+  };
 })(window);
 
 (function () {
@@ -5894,6 +6169,7 @@ PETRO_ROUTINE({
     sheet.hidden = true;
     PetroSession.stop();
     PetroLog.stop();
+    if (window.PetroToday) PetroToday.refresh();
     document.documentElement.classList.remove('locked');
     if (location.hash) { try { history.replaceState(null, '', CAT_HASH[state.cat] || location.pathname + location.search); } catch (e) { location.hash = ''; } }
     if (opener && opener.focus) opener.focus();
@@ -5941,6 +6217,8 @@ PETRO_ROUTINE({
   /* ---------- boot ---------- */
   build(); controls(); sheetEvents(); PetroSession.boot();
   PetroLog.init({ byId: (id) => bySlug[slug(id)], openMove: (sl) => { try { location.hash = sl; } catch (e) { openDetail(bySlug[sl], true); } } }); applyFilters(); observe();
+  const byName = Object.fromEntries(EX.map((e) => [e.name.toLowerCase(), e]));
+  PetroToday.init({ byName: (n) => byName[String(n).toLowerCase()] || null, open: (ex) => { try { location.hash = ex.slug; } catch (e) { openDetail(ex, true); } } });
   window.addEventListener('resize', () => { for (const c of cards) { c.sized = false; if (c.visible && !c.el.hidden) paint(c); } if (detail && !detail.sheet.hidden) { sizeCanvas($('#d-cv'), DPR); detail.pl.render(); } });
   window.addEventListener('hashchange', route);
   route();
